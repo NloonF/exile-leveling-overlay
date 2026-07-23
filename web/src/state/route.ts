@@ -1,4 +1,5 @@
 import { atom } from "jotai";
+import { nextRouteEdgeIndex } from "../integrations/areaProgression";
 import { buildDataSelector } from "./build-data";
 import { configSelector } from "./config";
 import { requiredGemsSelector } from "./gem";
@@ -118,27 +119,32 @@ export function edgeId(edgeIndex: number) {
 
 export const activeEdgeAtom = atom(
   (get) => get(activeEdgeIndex),
-  async (get, set, value: string | typeof RESET) => {
-    if (value === RESET) {
-      set(activeEdgeIndex, RESET);
-      return;
-    }
+  (_get, set, _value: typeof RESET) => {
+    set(activeEdgeIndex, RESET);
+  },
+);
 
+export const advanceRouteForAreaAtom = atom(
+  null,
+  async (get, set, areaId: string) => {
     const edges = (await get(routeSelector)).edges;
-    const nextEdgeIndex = get(activeEdgeAtom)[0] + 1;
-    const nextAreaId = edges[nextEdgeIndex];
+    const nextEdgeIndex = nextRouteEdgeIndex(
+      edges,
+      get(activeEdgeAtom)[0],
+      areaId,
+    );
 
-    let messageAreaId = null;
-    const matches = /Generating level \d+ area "(.*?)"/.exec(value);
-    if (matches !== null) {
-      messageAreaId = matches[1];
-    }
-
-    if (nextAreaId === messageAreaId) {
+    if (nextEdgeIndex !== null) {
       set(activeEdgeIndex, [nextEdgeIndex]);
     }
   },
 );
+
+export const nextExpectedAreaIdAtom = atom(async (get) => {
+  const edges = (await get(routeSelector)).edges;
+  const nextEdgeIndex = get(activeEdgeAtom)[0] + 1;
+  return edges[nextEdgeIndex] ?? null;
+});
 
 export const nextEdgeAtom = transientAtomFamily((param: number | null) => {
   if (param === null) return atom(null, () => {});

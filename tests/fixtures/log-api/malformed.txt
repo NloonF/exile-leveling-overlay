@@ -1,0 +1,3 @@
+Generating level nope area "1_1_2"
+Generating level 2 area ""
+unrelated helper diagnostic

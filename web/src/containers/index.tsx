@@ -1,6 +1,9 @@
 import { ErrorFallback } from "../components/ErrorFallback";
 import { Loading } from "../components/Loading";
 import { useAutoProgress } from "../components/AutoProgress";
+import { AutoProgressPanel } from "../components/AutoProgressPanel";
+import { OverlayControls } from "../components/OverlayControls";
+import { useOverlaySnapshotPublisher } from "../desktop/useOverlaySnapshotPublisher";
 import { Navbar } from "../components/Navbar";
 import { pipe } from "../utility";
 import { withBlank } from "../utility/withBlank";
@@ -24,6 +27,11 @@ export function App() {
   return (
     <>
       <Navbar />
+      <AutoProgressPanel />
+      <OverlayControls />
+      <Suspense fallback={null}>
+        <OverlaySnapshotPublisher />
+      </Suspense>
       <Suspense fallback={<Loading />}>
         <ErrorBoundary FallbackComponent={ErrorFallback}>
           <Routes>
@@ -65,6 +73,11 @@ export function App() {
       />
     </>
   );
+}
+
+function OverlaySnapshotPublisher() {
+  useOverlaySnapshotPublisher();
+  return null;
 }
 
 interface PageProps {

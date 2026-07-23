@@ -25,3 +25,4 @@ dist-ssr
 
 .env
 /common/data/tree/*.json
+/src-tauri/target

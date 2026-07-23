@@ -1,0 +1,40 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: var(--size-2);
+  margin-inline: auto var(--size-3);
+  padding: var(--size-1) var(--size-3);
+  border: var(--border-width) solid var(--accent-secondary);
+  border-radius: 999px;
+  color: var(--on-secondary);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: #d19a36;
+}
+
+.badge[data-state="connected"] .dot {
+  background: #55b86d;
+}
+
+.badge[data-state="reconnecting"] .dot {
+  background: #d65a5a;
+}
+
+.badge[data-state="disabled"] .dot {
+  background: var(--accent-primary);
+}
+
+@media (max-width: 34rem) {
+  .badge {
+    max-width: 9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Exile Leveling Overlay",
+  "version": "0.1.0",
+  "identifier": "dev.exile-leveling.overlay",
+  "build": {
+    "beforeDevCommand": "npm run dev:desktop -w web",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build:desktop -w web",
+    "frontendDist": "../web/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "dashboard",
+        "title": "Exile Leveling",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 720,
+        "minHeight": 500,
+        "center": true
+      },
+      {
+        "label": "overlay",
+        "title": "Exile Leveling Overlay",
+        "url": "index.html#/overlay",
+        "width": 420,
+        "height": 240,
+        "visible": false,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "focus": false
+      }
+    ],
+    "security": {
+      "csp": {
+        "default-src": "'self' customprotocol: asset:",
+        "connect-src": "'self' ipc: http://ipc.localhost ws://127.0.0.1:6754 https://cors-proxy-weld-sigma.vercel.app",
+        "font-src": "'self' data:",
+        "img-src": "'self' asset: http://asset.localhost blob: data:",
+        "style-src": "'self' 'unsafe-inline'",
+        "script-src": "'self'",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "frame-src": "'none'",
+        "form-action": "'self'"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "resources": ["licenses/*"],
+    "publisher": "Exile Leveling Overlay contributors",
+    "copyright": "Copyright © 2026 Exile Leveling Overlay contributors",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico"
+      }
+    }
+  }
+}
