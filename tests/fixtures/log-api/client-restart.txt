@@ -1,0 +1,2 @@
+Path of Exile client log disconnected
+Path of Exile client log connected

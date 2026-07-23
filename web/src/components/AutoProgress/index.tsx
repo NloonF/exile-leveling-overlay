@@ -1,60 +1,43 @@
-import { useSetAtom } from "jotai";
-import { useEffect } from "react";
-import { activeEdgeAtom } from "../../state/route";
-import { type Id, toast } from "react-toastify";
-import useWebSocket, { ReadyState } from "react-use-websocket-lite";
-import React from "react";
-
-const AUTO_PROGRESS_URL = "ws://localhost:6754";
+import { useAtomValue, useSetAtom } from "jotai";
+import { useEffect, useRef } from "react";
+import { LogApiClient } from "../../integrations/logApiClient";
+import {
+  autoProgressEnabledAtom,
+  autoProgressPausedAtom,
+  lastLogApiDiagnosticAtom,
+  logApiConnectionStateAtom,
+} from "../../state/auto-progress";
+import { advanceRouteForAreaAtom } from "../../state/route";
 
 export function useAutoProgress() {
-  const write = useSetAtom(activeEdgeAtom);
-  const { readyState } = useWebSocket({
-    url: AUTO_PROGRESS_URL,
-    shouldReconnect: true,
-    reconnectInterval: 1000,
-    onMessage(event) {
-      if (typeof event.data === "string") {
-        write(event.data);
-      }
-    },
-  });
-
-  const toastId = React.useRef<Id | null>(null);
+  const enabled = useAtomValue(autoProgressEnabledAtom);
+  const paused = useAtomValue(autoProgressPausedAtom);
+  const pausedRef = useRef(paused);
+  const advanceRoute = useSetAtom(advanceRouteForAreaAtom);
+  const setConnectionState = useSetAtom(logApiConnectionStateAtom);
+  const setLastDiagnostic = useSetAtom(lastLogApiDiagnosticAtom);
 
   useEffect(() => {
-    if (readyState == ReadyState.CONNECTING) {
-      if (toastId.current === null || !toast.isActive(toastId.current)) {
-        toastId.current = toast("");
-      }
+    pausedRef.current = paused;
+  }, [paused]);
 
-      toast.update(toastId.current, {
-        render: "Setup Auto-Progress",
-        type: "info",
-        onClick: () => {
-          window.open(
-            "https://github.com/HeartofPhos/exile-log-api/releases",
-            "_blank",
-          );
-        },
-        style: { cursor: "pointer" },
-        autoClose: false,
-        closeOnClick: false,
-        closeButton: null,
-      });
-    } else {
-      if (toastId.current === null || !toast.isActive(toastId.current)) {
-        toastId.current = toast("");
-      }
-
-      toast.update(toastId.current, {
-        render: "Auto-Progress Connected",
-        type: "success",
-        onClick: null,
-        autoClose: null,
-        closeOnClick: null,
-        closeButton: null,
-      });
+  useEffect(() => {
+    if (!enabled) {
+      setConnectionState({ status: "disabled" });
+      return;
     }
-  }, [readyState]);
+
+    const client = new LogApiClient({
+      onConnectionState: setConnectionState,
+      onDiagnostic: setLastDiagnostic,
+      onAreaEntered(event) {
+        if (!pausedRef.current) {
+          advanceRoute(event.areaId);
+        }
+      },
+    });
+    client.start();
+
+    return () => client.stop();
+  }, [advanceRoute, enabled, setConnectionState, setLastDiagnostic]);
 }

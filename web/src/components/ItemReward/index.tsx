@@ -46,9 +46,15 @@ interface GemRewardProps {
   requiredGem: RouteData.RequiredGem;
   count: number;
   rewardType?: ItemRewardProps["rewardType"];
+  readOnly?: boolean;
 }
 
-export function GemReward({ requiredGem, count, rewardType }: GemRewardProps) {
+export function GemReward({
+  requiredGem,
+  count,
+  rewardType,
+  readOnly = false,
+}: GemRewardProps) {
   const gem = Data.Gems[requiredGem.id];
 
   if (!gem)
@@ -76,7 +82,7 @@ export function GemReward({ requiredGem, count, rewardType }: GemRewardProps) {
       }
       right={
         <div className={classNames(styles.rewardNote)}>
-          {requiredGem.note} <CopyToClipboard text={gem.name} />
+          {requiredGem.note} {!readOnly && <CopyToClipboard text={gem.name} />}
         </div>
       }
     />

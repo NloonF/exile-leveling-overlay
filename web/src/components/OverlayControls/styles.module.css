@@ -1,0 +1,66 @@
+.panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-3) var(--size-5);
+  padding: var(--size-3);
+  border-bottom: var(--border-width) solid var(--accent-secondary);
+  background: var(--secondary);
+  font-size: 0.875rem;
+}
+
+.panel label,
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-2);
+}
+
+.actions button {
+  padding: var(--size-2) var(--size-3);
+  border: var(--border-width) solid var(--accent-primary);
+  border-radius: var(--border-radius);
+  background: var(--highlight-primary);
+}
+
+.actions button {
+  cursor: pointer;
+}
+
+.actions button:hover {
+  background: var(--highlight-secondary);
+}
+
+.panel input[type="range"],
+.panel input[type="checkbox"],
+.panel select {
+  appearance: auto;
+}
+
+.panel output {
+  min-width: 3rem;
+}
+
+.hotkeyStatus {
+  color: var(--text-secondary);
+}
+
+.hotkeyStatus[data-state="active"] {
+  color: var(--success, #79cf8b);
+}
+
+.hotkeyStatus[data-state="error"] {
+  color: var(--error, #e47777);
+}
+
+.poeStatus {
+  color: var(--text-secondary);
+}
+
+.poeStatus[data-state="foreground"] {
+  color: var(--success, #79cf8b);
+}
+
+.poeStatus[data-state="background"] {
+  color: #e0b25d;
+}

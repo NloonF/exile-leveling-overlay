@@ -15,6 +15,7 @@ import {
   BsArrowUpRightSquare,
   BsArrowUpSquare,
 } from "react-icons/bs";
+import { FaRegClipboard } from "react-icons/fa";
 
 function getImageUrl(path: string) {
   return new URL(`./images/${path}`, import.meta.url).href;
@@ -40,7 +41,7 @@ function EnemyComponent(enemy: string) {
 function AreaComponent(
   name: string,
   isTownArea: boolean,
-  areaLevel: number | undefined
+  areaLevel: number | undefined,
 ) {
   return (
     <div className={classNames(styles.noWrap)}>
@@ -66,8 +67,8 @@ function QuestComponent(fragment: Fragments.QuestFragment) {
     new Set(
       fragment.rewardOffers
         .map((x) => quest.reward_offers[x]?.quest_npc)
-        .filter((x) => x !== undefined)
-    )
+        .filter((x) => x !== undefined),
+    ),
   );
 
   return (
@@ -196,7 +197,8 @@ const ASCEND_LOOKUP: Record<
 };
 
 function AscendComponent(
-  version: Fragments.AscendFragment["version"]
+  version: Fragments.AscendFragment["version"],
+  readOnly: boolean,
 ): [React.ReactNode, React.ReactNode] {
   const { url, areaId } = ASCEND_LOOKUP[version];
   const area = Data.Areas[areaId];
@@ -210,20 +212,25 @@ function AscendComponent(
       <span className={classNames(styles.trial)}>Ascend</span>
       <> {MinAreaLevelComponent(area.level)}</>
     </div>,
-    <a
-      href={url}
-      target="_blank"
-      onClick={(e) => {
-        e.stopPropagation();
-      }}
-    >
-      Daily Layout
-    </a>,
+    readOnly ? (
+      <span>Daily Layout</span>
+    ) : (
+      <a
+        href={url}
+        target="_blank"
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+      >
+        Daily Layout
+      </a>
+    ),
   ];
 }
 
 export function Fragment(
-  fragment: Fragments.AnyFragment
+  fragment: Fragments.AnyFragment,
+  options: { readOnly?: boolean } = {},
 ): [React.ReactNode, React.ReactNode] {
   if (typeof fragment === "string") return [<>{fragment}</>, null];
 
@@ -254,7 +261,7 @@ export function Fragment(
           {AreaComponent(
             dstArea.map_name || dstArea.name,
             dstArea.is_town_area,
-            dstArea.level
+            dstArea.level,
           )}
           {dstArea.act !== srcArea.act &&
             dstArea.id !== "Labyrinth_Airlock" && (
@@ -290,7 +297,7 @@ export function Fragment(
     case "trial":
       return [TrialComponent(), null];
     case "ascend":
-      return AscendComponent(fragment.version);
+      return AscendComponent(fragment.version, options.readOnly === true);
     case "crafting":
       return [CraftingComponent(fragment.crafting_recipes), null];
     case "dir":
@@ -301,7 +308,14 @@ export function Fragment(
         null,
       ];
 
-      const node = <CopyToClipboard text={fragment.text} />;
+      const node =
+        options.readOnly === true ? (
+          <span title={fragment.text}>
+            <FaRegClipboard className={classNames("inlineIcon")} />
+          </span>
+        ) : (
+          <CopyToClipboard text={fragment.text} />
+        );
       switch (fragment.side) {
         case "head":
           output[0] = node;

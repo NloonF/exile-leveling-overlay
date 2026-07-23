@@ -1,4 +1,5 @@
 import { useAtomValue } from "jotai";
+import { HelperConnectionStatus } from "../HelperConnectionStatus";
 import { routeSelector } from "../../state/route";
 import { routeFilesSelector } from "../../state/route-files";
 import { borderListStyles, interactiveStyles } from "../../styles";
@@ -73,6 +74,7 @@ export function Navbar({}: NavbarProps) {
           [styles.expand]: navExpand,
         })}
       >
+        <HelperConnectionStatus />
         <button onClick={() => setNavExpand(!navExpand)}>
           <FaBars
             aria-label="Menu"
