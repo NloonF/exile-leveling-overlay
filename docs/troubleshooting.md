@@ -1,23 +1,28 @@
 # Troubleshooting
 
-## Waiting for log helper
+## Waiting for log reader
 
-- Confirm `exile-log-api` is running.
-- Confirm it listens on `127.0.0.1:6754`.
-- Start the desktop app before or after the helper; it reconnects
-  automatically with bounded backoff.
-- Another application occupying port `6754` must be stopped or reconfigured.
+- Do not start a separate helper during normal use; the reader is built in.
+- Start the desktop app normally, enable auto-progress, and wait a few seconds
+  while the running Path of Exile 1 client is detected.
+- Open **Advanced log location** to provide the full path to
+  `LatestClient.txt` when automatic detection is unavailable.
+- The reader does not open a network port and does not require a firewall
+  exception.
+- If the status remains disconnected, close all overlay windows, confirm the
+  process has exited in Task Manager, and start it again.
 
 ## Events arrive but the route does not advance
 
 - Auto-progress must be enabled and not paused.
 - Only the next expected area advances the route.
 - Use the dashboard's last-event and expected-area diagnostics to compare the
-  helper event with the route.
+  log event with the route.
 
 ## PoE not found — manual placement
 
-- Use a standard `PathOfExile*.exe` client in borderless or windowed mode.
+- Use a supported Path of Exile 1 client in borderless or windowed mode. Path
+  of Exile 2 is intentionally ignored.
 - If PoE runs as administrator, run both applications at the same privilege
   level so Windows permits process identification.
 - Restarting is not required; detection polls automatically.
@@ -33,7 +38,8 @@ the preference if the overlay should stay visible while alt-tabbed.
 Open edit mode while PoE is running and drag the overlay to the desired
 location. The saved position is relative to the game client and follows
 window and monitor movement. Without PoE, dragging saves a manual screen
-position.
+position. Choose **Reset position** if a previous monitor configuration made
+the overlay inaccessible.
 
 ## Global shortcut unavailable
 

@@ -1,35 +1,52 @@
 import { useAtom, useAtomValue } from "jotai";
-import { Suspense } from "react";
+import { useEffect, useState } from "react";
 import {
   autoProgressEnabledAtom,
   autoProgressPausedAtom,
-  lastLogApiDiagnosticAtom,
-  logApiConnectionStateAtom,
+  logReaderStatusAtom,
 } from "../../state/auto-progress";
-import { overlaySnapshotAtom } from "../../state/overlay-snapshot";
-import { nextExpectedAreaIdAtom } from "../../state/route";
 import styles from "./styles.module.css";
 
-const statusLabels = {
-  disabled: "Disabled",
-  connecting: "Waiting for log helper",
-  connected: "Connected",
-  reconnecting: "Disconnected — retry scheduled",
-} as const;
+const MANUAL_LOG_PATH_KEY = "manual-latest-client-path";
 
 export function AutoProgressPanel() {
   const [enabled, setEnabled] = useAtom(autoProgressEnabledAtom);
   const [paused, setPaused] = useAtom(autoProgressPausedAtom);
-  const connection = useAtomValue(logApiConnectionStateAtom);
-  const diagnostic = useAtomValue(lastLogApiDiagnosticAtom);
-  const nextExpectedAreaId = useAtomValue(nextExpectedAreaIdAtom);
+  const readerStatus = useAtomValue(logReaderStatusAtom);
+  const [manualPath, setManualPath] = useState(
+    () => localStorage.getItem(MANUAL_LOG_PATH_KEY) ?? "",
+  );
+  const [pathError, setPathError] = useState<string | null>(null);
 
-  const diagnosticText =
-    diagnostic === null
-      ? "No helper event received in this session"
-      : diagnostic.kind === "area-entered"
-        ? `Area ${diagnostic.areaId} (level ${diagnostic.areaLevel})`
-        : "Helper message not recognised";
+  useEffect(() => {
+    if (!("__TAURI_INTERNALS__" in window) || !manualPath) {
+      return;
+    }
+    void import("@tauri-apps/api/core").then(({ invoke }) =>
+      invoke("set_manual_log_path", { path: manualPath }).catch((error) =>
+        setPathError(String(error)),
+      ),
+    );
+  }, []);
+
+  async function saveManualPath(path: string | null) {
+    if (!("__TAURI_INTERNALS__" in window)) {
+      return;
+    }
+    setPathError(null);
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("set_manual_log_path", { path });
+      if (path) {
+        localStorage.setItem(MANUAL_LOG_PATH_KEY, path);
+      } else {
+        localStorage.removeItem(MANUAL_LOG_PATH_KEY);
+        setManualPath("");
+      }
+    } catch (error) {
+      setPathError(String(error));
+    }
+  }
 
   return (
     <section className={styles.panel} aria-label="Automatic progression">
@@ -57,73 +74,61 @@ export function AutoProgressPanel() {
           {paused ? "Resume auto-progress" : "Pause auto-progress"}
         </button>
       </div>
-
-      <dl className={styles.diagnostics}>
-        <div>
-          <dt>Status</dt>
-          <dd>
-            {paused && enabled
-              ? "Paused — events will not advance"
-              : statusLabels[connection.status]}
-            {connection.status === "reconnecting" &&
-              ` (attempt ${connection.attempt}, ${connection.retryInMs / 1_000}s)`}
-          </dd>
+      {(readerStatus.state === "error" || pathError !== null) && (
+        <div className={styles.error} role="alert">
+          <strong>Automatic progression needs attention.</strong>
+          <span>{pathError ?? readerStatus.message}</span>
         </div>
+      )}
+      <details className={styles.advanced}>
+        <summary>Advanced log location</summary>
+        <p>
+          Leave this empty to detect the running Path of Exile 1 client
+          automatically.
+        </p>
+        <label>
+          LatestClient.txt
+          <input
+            type="text"
+            value={manualPath}
+            placeholder="C:\Path of Exile\logs\LatestClient.txt"
+            onChange={(event) => setManualPath(event.target.value)}
+          />
+        </label>
         <div>
-          <dt>Endpoint</dt>
-          <dd>ws://127.0.0.1:6754</dd>
+          <button
+            type="button"
+            onClick={() => {
+              void import("@tauri-apps/plugin-dialog").then(
+                async ({ open }) => {
+                  const selected = await open({
+                    multiple: false,
+                    directory: false,
+                    filters: [
+                      { name: "Path of Exile log", extensions: ["txt"] },
+                    ],
+                  });
+                  if (selected) {
+                    setManualPath(selected);
+                    await saveManualPath(selected);
+                  }
+                },
+              );
+            }}
+          >
+            Browse
+          </button>
+          <button
+            type="button"
+            onClick={() => void saveManualPath(manualPath.trim() || null)}
+          >
+            Apply location
+          </button>
+          <button type="button" onClick={() => void saveManualPath(null)}>
+            Use automatic detection
+          </button>
         </div>
-        <div>
-          <dt>Expected next area</dt>
-          <dd>{nextExpectedAreaId ?? "Guide complete"}</dd>
-        </div>
-        <div>
-          <dt>Last event</dt>
-          <dd>{diagnosticText}</dd>
-        </div>
-        {diagnostic !== null && (
-          <div>
-            <dt>Received</dt>
-            <dd>
-              <time dateTime={diagnostic.receivedAt}>
-                {new Date(diagnostic.receivedAt).toLocaleTimeString()}
-              </time>
-            </dd>
-          </div>
-        )}
-      </dl>
-
-      <details className={styles.snapshot}>
-        <summary>Overlay snapshot preview</summary>
-        <Suspense
-          fallback={
-            <div className={styles.snapshotCard}>Preparing snapshot…</div>
-          }
-        >
-          <OverlaySnapshotPreview />
-        </Suspense>
       </details>
     </section>
-  );
-}
-
-function OverlaySnapshotPreview() {
-  const overlaySnapshot = useAtomValue(overlaySnapshotAtom);
-
-  return (
-    <div className={styles.snapshotCard}>
-      <strong>
-        {overlaySnapshot.sectionTitle ?? "Guide"} ·{" "}
-        {overlaySnapshot.areaName ?? overlaySnapshot.status}
-      </strong>
-      <span>{overlaySnapshot.primaryInstruction.text}</span>
-      {overlaySnapshot.secondaryInstructions.map((instruction, index) => (
-        <span key={`${index}-${instruction.text}`}>• {instruction.text}</span>
-      ))}
-      <small>
-        {overlaySnapshot.status} · Step {overlaySnapshot.progress.current} /{" "}
-        {overlaySnapshot.progress.total}
-      </small>
-    </div>
   );
 }

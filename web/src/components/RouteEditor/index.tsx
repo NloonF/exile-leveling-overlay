@@ -22,7 +22,7 @@ const URL_REWRITERS: UrlRewriter[] = [
     const match = /pastebin\.com\/(.+)$/.exec(url);
     if (!match) return null;
 
-    return `pastebin.com/raw/${match[1]}`;
+    return `https://pastebin.com/raw/${match[1]}`;
   },
 ];
 

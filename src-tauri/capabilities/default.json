@@ -5,6 +5,7 @@
   "windows": ["dashboard", "overlay"],
   "permissions": [
     "core:default",
+    "dialog:allow-open",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister"
   ]

@@ -20,6 +20,7 @@ const RoutesContainer = pipe(
 )(lazy(() => import("./Routes")));
 const BuildContainer = withBlank(lazy(() => import("./Build")));
 const EditRouteContainer = withBlank(lazy(() => import("./EditRoute")));
+const AboutContainer = withBlank(lazy(() => import("./About")));
 
 export function App() {
   useAutoProgress();
@@ -56,6 +57,15 @@ export function App() {
                 <Page
                   title="Exile Leveling - Edit Route"
                   component={<EditRouteContainer />}
+                />
+              }
+            />
+            <Route
+              path="/about"
+              element={
+                <Page
+                  title="Exile Leveling - About"
+                  component={<AboutContainer />}
                 />
               }
             />

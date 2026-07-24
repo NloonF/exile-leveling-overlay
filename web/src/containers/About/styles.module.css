@@ -1,0 +1,26 @@
+.about {
+  width: min(48rem, calc(100% - 2 * var(--size-5)));
+  margin: var(--size-6) auto;
+  line-height: 1.55;
+}
+
+.about h1,
+.about h2 {
+  margin-top: var(--size-5);
+}
+
+.about a {
+  color: var(--accent-primary);
+}
+
+.notice {
+  margin: var(--size-5) 0;
+  padding: var(--size-4);
+  border: var(--border-width) solid var(--accent-primary);
+  border-left-width: 0.3rem;
+  background: var(--secondary);
+}
+
+.notice p {
+  margin-bottom: 0;
+}

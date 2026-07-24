@@ -14,25 +14,25 @@ const URL_REWRITERS: UrlRewriter[] = [
     const match = /pastebin\.com\/(.+)$/.exec(url);
     if (!match) return null;
 
-    return `pastebin.com/raw/${match[1]}`;
+    return `https://pastebin.com/raw/${match[1]}`;
   },
   (url) => {
     const match = /poe\.ninja\/pob\/(.+)$/.exec(url);
     if (!match) return null;
 
-    return `poe.ninja/pob/raw/${match[1]}`;
+    return `https://poe.ninja/pob/raw/${match[1]}`;
   },
   (url) => {
     const match = /pobb\.in\/(.+)$/.exec(url);
     if (!match) return null;
 
-    return `pobb.in/${match[1]}/raw`;
+    return `https://pobb.in/${match[1]}/raw`;
   },
   (url) => {
     const match = /maxroll\.gg\/poe\/pob\/(.+)$/.exec(url);
     if (!match) return null;
 
-    return `maxroll.gg/poe/api/pob/${match[1]}`;
+    return `https://maxroll.gg/poe/api/pob/${match[1]}`;
   },
   (url) => {
     const match = /youtube.com\/redirect\?.+?q=(.+?)(?:&|$)/.exec(url);
