@@ -75,9 +75,107 @@ export interface ViewBox {
   h: number;
 }
 
+export interface TreeStyleOptions {
+  styleId: string;
+  backgroundColor: string;
+  ascendancy?: string;
+  nodeColor: string;
+  nodeActiveColor: string;
+  nodeAddedColor: string;
+  nodeRemovedColor: string;
+  connectionColor: string;
+  connectionActiveColor: string;
+  connectionAddedColor: string;
+  connectionRemovedColor: string;
+  nodesActive: string[];
+  nodesAdded: string[];
+  nodesRemoved: string[];
+  connectionsActive: string[];
+  connectionsAdded: string[];
+  connectionsRemoved: string[];
+}
+
+function selectorRule(
+  styleId: string,
+  prefix: string,
+  ids: string[],
+  declarations: string,
+) {
+  if (ids.length === 0) return "";
+  const selectors = ids.map((id) => `#${prefix}${id}`).join(", ");
+  return `#${styleId} :is(${selectors}) { ${declarations} }\n`;
+}
+
+export function buildTreeStyle(options: TreeStyleOptions) {
+  const id = options.styleId;
+  let style = `
+#${id} { background-color: ${options.backgroundColor}; }
+#${id} .${GROUP_NODE_CLASS} {
+  fill: ${options.nodeColor};
+  stroke: ${options.nodeColor};
+  stroke-width: ${NODE_STROKE_WIDTH};
+}
+#${id} .${GROUP_NODE_CLASS} .${NODE_MASTERY_CLASS} {
+  fill: transparent;
+  stroke: transparent;
+}
+#${id} .${GROUP_CONNECTION_CLASS} {
+  fill: none;
+  stroke: ${options.connectionColor};
+  stroke-width: ${CONNECTION_STROKE_WIDTH};
+}
+#${id} .${ASCENDANCY_CLASS} { opacity: 0.4; }
+#${id} .${BORDER_CLASS} {
+  fill: none;
+  stroke: ${options.connectionColor};
+  stroke-width: ${CONNECTION_STROKE_WIDTH};
+}
+`;
+  if (options.ascendancy) {
+    style += `#${id} .${ASCENDANCY_CLASS}.${options.ascendancy} { opacity: unset; }\n`;
+  }
+  style += selectorRule(
+    id,
+    "n",
+    options.nodesActive,
+    `fill: ${options.nodeActiveColor}; stroke: ${options.nodeActiveColor};`,
+  );
+  style += selectorRule(
+    id,
+    "n",
+    options.nodesAdded,
+    `fill: ${options.nodeAddedColor}; stroke: ${options.nodeAddedColor};`,
+  );
+  style += selectorRule(
+    id,
+    "n",
+    options.nodesRemoved,
+    `fill: ${options.nodeRemovedColor}; stroke: ${options.nodeRemovedColor};`,
+  );
+  style += selectorRule(
+    id,
+    "c",
+    options.connectionsActive,
+    `stroke: ${options.connectionActiveColor}; stroke-width: ${CONNECTION_ACTIVE_STROKE_WIDTH};`,
+  );
+  style += selectorRule(
+    id,
+    "c",
+    options.connectionsAdded,
+    `stroke: ${options.connectionAddedColor}; stroke-width: ${CONNECTION_ACTIVE_STROKE_WIDTH};`,
+  );
+  style += selectorRule(
+    id,
+    "c",
+    options.connectionsRemoved,
+    `stroke: ${options.connectionRemovedColor}; stroke-width: ${CONNECTION_ACTIVE_STROKE_WIDTH};`,
+  );
+  return style;
+}
+
 export function buildTemplate(
   tree: SkillTree.Data,
-  nodeLookup: SkillTree.NodeLookup
+  nodeLookup: SkillTree.NodeLookup,
 ) {
   const viewBox: ViewBox = {
     x: tree.bounds.minX - PADDING,
@@ -103,88 +201,20 @@ export function buildTemplate(
     svg += buildSubTree(
       tree.graphs[ascendancy.graphIndex],
       nodeLookup,
-      ASCENDANCY_CONSTANTS
+      ASCENDANCY_CONSTANTS,
     );
     svg += `</g>\n`;
   }
 
   svg += `</svg>\n`;
 
-  const styleTemplate = `
-#{{ styleId }} {
-  background-color: {{ backgroundColor }};
-}
-
-#{{ styleId }} .${GROUP_NODE_CLASS} {
-  fill: {{ nodeColor }};
-  stroke: {{ nodeColor }};
-  stroke-width: ${NODE_STROKE_WIDTH};
-}
-
-#{{ styleId }} .${GROUP_NODE_CLASS} .${NODE_MASTERY_CLASS} {
-  fill: transparent;
-  stroke: transparent;
-}
-
-#{{ styleId }} .${GROUP_CONNECTION_CLASS} {
-  fill: none;
-  stroke: {{ connectionColor }};
-  stroke-width: ${CONNECTION_STROKE_WIDTH};
-}
-
-#{{ styleId }} .${ASCENDANCY_CLASS} {
-  opacity: 0.4;
-}
-
-{{#if ascendancy}}
-#{{ styleId }} .${ASCENDANCY_CLASS}.{{ ascendancy }} {
-  opacity: unset;
-}
-{{/if}}
-
-#{{ styleId }} .${BORDER_CLASS} {
-  fill: none;
-  stroke: {{ connectionColor }};
-  stroke-width: ${CONNECTION_STROKE_WIDTH};
-}
-
-#{{ styleId }} :is({{#each nodesActive}}#n{{this}}{{#unless @last}}, {{/unless}}{{/each}}) {
-  fill: {{ nodeActiveColor }};
-  stroke: {{ nodeActiveColor }};
-}
-
-#{{ styleId }} :is({{#each nodesAdded}}#n{{this}}{{#unless @last}}, {{/unless}}{{/each}}) {
-  fill: {{ nodeAddedColor }};
-  stroke: {{ nodeAddedColor }};
-}
-
-#{{ styleId }} :is({{#each nodesRemoved}}#n{{this}}{{#unless @last}}, {{/unless}}{{/each}}) {
-  fill: {{ nodeRemovedColor }};
-  stroke: {{ nodeRemovedColor }};
-}
-
-#{{ styleId }} :is({{#each connectionsActive}}#c{{this}}{{#unless @last}}, {{/unless}}{{/each}}) {
-  stroke: {{ connectionActiveColor }};
-  stroke-width: ${CONNECTION_ACTIVE_STROKE_WIDTH};
-}
-
-#{{ styleId }} :is({{#each connectionsAdded}}#c{{this}}{{#unless @last}}, {{/unless}}{{/each}}) {
-  stroke: {{ connectionAddedColor }};
-  stroke-width: ${CONNECTION_ACTIVE_STROKE_WIDTH};
-}
-
-#{{ styleId }} :is({{#each connectionsRemoved}}#c{{this}}{{#unless @last}}, {{/unless}}{{/each}}) {
-  stroke: {{ connectionRemovedColor }};
-  stroke-width: ${CONNECTION_ACTIVE_STROKE_WIDTH};
-}`;
-
-  return { svg, viewBox, styleTemplate };
+  return { svg, viewBox };
 }
 
 function buildSubTree(
   graph: SkillTree.Graph,
   nodeLookup: SkillTree.NodeLookup,
-  constantsLookup: ConstantsLookup
+  constantsLookup: ConstantsLookup,
 ) {
   let template = ``;
 
@@ -206,7 +236,7 @@ function buildSubTree(
 function buildNode(
   nodeId: string,
   node: SkillTree.Node,
-  constantsLookup: ConstantsLookup
+  constantsLookup: ConstantsLookup,
 ) {
   const constants = constantsLookup[node.k];
   if (constants === undefined) throw `missing constant, ${node.k}`;
@@ -220,7 +250,7 @@ function buildNode(
 
 function buildConnection(
   connection: SkillTree.Connection,
-  nodeLookup: SkillTree.NodeLookup
+  nodeLookup: SkillTree.NodeLookup,
 ) {
   const id = `${connection.a}-${connection.b}`;
 

@@ -1,6 +1,6 @@
 # Troubleshooting
 
-## Waiting for log reader
+## Waiting for PoE to launch
 
 - Do not start a separate helper during normal use; the reader is built in.
 - Start the desktop app normally, enable auto-progress, and wait a few seconds
@@ -9,8 +9,9 @@
   `LatestClient.txt` when automatic detection is unavailable.
 - The reader does not open a network port and does not require a firewall
   exception.
-- If the status remains disconnected, close all overlay windows, confirm the
-  process has exited in Task Manager, and start it again.
+- If PoE is already running but the status does not change, verify the log
+  location, then close all overlay windows, confirm the process has exited in
+  Task Manager, and start it again.
 
 ## Events arrive but the route does not advance
 

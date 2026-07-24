@@ -19,12 +19,15 @@ function errorMessage(error: unknown): string {
 }
 
 export function validateOverlayHotkeys(hotkeys: OverlayHotkeys): string | null {
-  if (
-    hotkeys.toggleOverlay &&
-    hotkeys.holdForDetails &&
-    hotkeys.toggleOverlay.toLowerCase() === hotkeys.holdForDetails.toLowerCase()
-  ) {
-    return "Choose two different shortcuts";
+  const shortcuts = [
+    hotkeys.toggleOverlay,
+    hotkeys.holdForDetails,
+    hotkeys.toggleTree,
+  ]
+    .filter((shortcut) => shortcut.length > 0)
+    .map((shortcut) => shortcut.toLowerCase());
+  if (new Set(shortcuts).size !== shortcuts.length) {
+    return "Choose different shortcuts for each action";
   }
   return null;
 }
@@ -92,6 +95,15 @@ export function configureOverlayHotkeys(
             });
           });
           activeShortcuts.push(hotkeys.holdForDetails);
+        }
+
+        if (hotkeys.toggleTree) {
+          await register(hotkeys.toggleTree, (event) => {
+            if (event.state === "Pressed") {
+              void invoke("toggle_overlay_tree_mode");
+            }
+          });
+          activeShortcuts.push(hotkeys.toggleTree);
         }
       } catch (error) {
         if (activeShortcuts.length > 0) {

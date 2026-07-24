@@ -28,7 +28,14 @@ separate helper for normal use.
 3. Import or select a build and route in the dashboard.
 4. Enable auto-progress when ready.
 5. Open **Overlay settings**, choose **Edit layout**, and drag it. Choose
-   **Edit layout** again, or **Finish editing** on the overlay, when finished.
+   **Edit layout** again, or **Finish editing** on either overlay, when
+   finished. When a passive tree is imported, the same editing mode exposes
+   both overlay windows.
+6. After importing a Path of Building tree, use the **Passive tree** control
+   or `Ctrl+Shift+T` to toggle its separate overlay. Tree width, height, and
+   opacity have separate controls. Hold `Ctrl+Shift+D` to interact with the
+   tree: hover nodes, wheel-zoom, and drag to pan. Use the arrow buttons below
+   the tree to move between imported tree stages.
 
 The dashboard reports log-reader connectivity and PoE-window detection
 independently. If PoE is not detected, the overlay remains usable in manual

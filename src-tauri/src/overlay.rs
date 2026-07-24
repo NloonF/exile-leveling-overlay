@@ -16,8 +16,13 @@ const POE_WINDOW_POLL_INTERVAL: Duration = Duration::from_millis(250);
 
 pub struct OverlayRuntime {
     editing: AtomicBool,
+    detail_mode: AtomicBool,
     desired_visible: AtomicBool,
+    tree_mode: AtomicBool,
+    tree_editing: AtomicBool,
+    tree_visible_before_edit: AtomicBool,
     preferences: Mutex<NativeOverlayPreferences>,
+    tree_preferences: Mutex<NativeTreeOverlayPreferences>,
     poe_status: Mutex<PoeWindowStatus>,
 }
 
@@ -25,8 +30,13 @@ impl Default for OverlayRuntime {
     fn default() -> Self {
         Self {
             editing: AtomicBool::new(false),
+            detail_mode: AtomicBool::new(false),
             desired_visible: AtomicBool::new(true),
+            tree_mode: AtomicBool::new(false),
+            tree_editing: AtomicBool::new(false),
+            tree_visible_before_edit: AtomicBool::new(false),
             preferences: Mutex::new(NativeOverlayPreferences::default()),
+            tree_preferences: Mutex::new(NativeTreeOverlayPreferences::default()),
             poe_status: Mutex::new(PoeWindowStatus::default()),
         }
     }
@@ -43,6 +53,8 @@ enum CoordinateMode {
 struct NativeOverlayPreferences {
     position_x: i32,
     position_y: i32,
+    width: f64,
+    height: f64,
     coordinate_mode: CoordinateMode,
     auto_hide_when_game_inactive: bool,
 }
@@ -52,6 +64,31 @@ impl Default for NativeOverlayPreferences {
         Self {
             position_x: 24,
             position_y: 80,
+            width: 420.0,
+            height: 240.0,
+            coordinate_mode: CoordinateMode::Game,
+            auto_hide_when_game_inactive: true,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct NativeTreeOverlayPreferences {
+    position_x: i32,
+    position_y: i32,
+    width: f64,
+    height: f64,
+    coordinate_mode: CoordinateMode,
+    auto_hide_when_game_inactive: bool,
+}
+
+impl Default for NativeTreeOverlayPreferences {
+    fn default() -> Self {
+        Self {
+            position_x: 500,
+            position_y: 80,
+            width: 680.0,
+            height: 470.0,
             coordinate_mode: CoordinateMode::Game,
             auto_hide_when_game_inactive: true,
         }
@@ -63,6 +100,19 @@ impl Default for NativeOverlayPreferences {
 pub struct OverlayPreferences {
     position_x: i32,
     position_y: i32,
+    width: f64,
+    height: f64,
+    coordinate_mode: Option<CoordinateMode>,
+    auto_hide_when_game_inactive: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TreeOverlayPreferences {
+    position_x: i32,
+    position_y: i32,
+    width: f64,
+    height: f64,
     coordinate_mode: Option<CoordinateMode>,
     auto_hide_when_game_inactive: bool,
 }
@@ -80,10 +130,14 @@ struct OverlayPosition {
 pub struct OverlayRuntimeStatus {
     visible: bool,
     editing: bool,
+    tree_mode: bool,
 }
 
 pub fn initialise(app: &tauri::AppHandle) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window("overlay") {
+        window.set_ignore_cursor_events(true)?;
+    }
+    if let Some(window) = app.get_webview_window("tree-overlay") {
         window.set_ignore_cursor_events(true)?;
     }
     sync_overlay_window(app);
@@ -130,37 +184,146 @@ pub fn get_poe_window_status(app: tauri::AppHandle) -> PoeWindowStatus {
 
 #[tauri::command]
 pub fn set_overlay_detail_mode(enabled: bool, app: tauri::AppHandle) -> Result<(), String> {
+    let runtime = app.state::<OverlayRuntime>();
+    runtime.detail_mode.store(enabled, Ordering::SeqCst);
+    if let Some(window) = app.get_webview_window("overlay") {
+        let ignore_cursor = !enabled && !runtime.editing.load(Ordering::SeqCst);
+        window
+            .set_ignore_cursor_events(ignore_cursor)
+            .map_err(|error| error.to_string())?;
+    }
+    if let Some(window) = app.get_webview_window("tree-overlay") {
+        let ignore_cursor = !enabled && !runtime.tree_editing.load(Ordering::SeqCst);
+        window
+            .set_ignore_cursor_events(ignore_cursor)
+            .map_err(|error| error.to_string())?;
+    }
     app.emit_to("overlay", "overlay-detail-mode", enabled)
+        .map_err(|error| error.to_string())?;
+    app.emit_to("tree-overlay", "overlay-detail-mode", enabled)
         .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub fn resize_overlay_to_content(
-    width: f64,
-    height: f64,
+pub fn toggle_overlay_tree_mode(app: tauri::AppHandle) -> Result<(), String> {
+    let runtime = app.state::<OverlayRuntime>();
+    let enabled = !runtime.tree_mode.load(Ordering::SeqCst);
+    runtime.tree_mode.store(enabled, Ordering::SeqCst);
+    sync_overlay_window(&app);
+    emit_overlay_runtime_status(&app);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn apply_tree_overlay_preferences(
+    preferences: TreeOverlayPreferences,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    let window = app
-        .get_webview_window("overlay")
-        .ok_or_else(|| "overlay window is unavailable".to_string())?;
-    let scale_factor = window.scale_factor().unwrap_or(1.0);
-    let maximum_size = window
-        .current_monitor()
-        .ok()
-        .flatten()
-        .map(|monitor| {
-            (
-                monitor.size().width as f64 / scale_factor * 0.95,
-                monitor.size().height as f64 / scale_factor * 0.95,
-            )
-        })
-        .unwrap_or((width, height));
+    let runtime = app.state::<OverlayRuntime>();
+    {
+        let mut native = runtime
+            .tree_preferences
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        native.position_x = preferences.position_x;
+        native.position_y = preferences.position_y;
+        native.width = preferences.width.max(420.0);
+        native.height = preferences.height.max(300.0);
+        native.coordinate_mode = preferences
+            .coordinate_mode
+            .unwrap_or(CoordinateMode::Screen);
+        native.auto_hide_when_game_inactive = preferences.auto_hide_when_game_inactive;
+    }
+    sync_overlay_window(&app);
+    Ok(())
+}
 
+fn start_tree_edit_mode(app: &tauri::AppHandle) -> Result<(), String> {
+    let runtime = app.state::<OverlayRuntime>();
+    let window = app
+        .get_webview_window("tree-overlay")
+        .ok_or_else(|| "tree overlay window is unavailable".to_string())?;
+    runtime.tree_mode.store(true, Ordering::SeqCst);
+    runtime.tree_editing.store(true, Ordering::SeqCst);
     window
-        .set_size(Size::Logical(LogicalSize::new(
-            width.max(80.0).min(maximum_size.0),
-            height.max(80.0).min(maximum_size.1),
-        )))
+        .set_resizable(true)
+        .map_err(|error| error.to_string())?;
+    window.show().map_err(|error| error.to_string())?;
+    window
+        .set_ignore_cursor_events(false)
+        .map_err(|error| error.to_string())?;
+    window.set_focus().map_err(|error| error.to_string())?;
+    app.emit_to("tree-overlay", "tree-overlay-edit-mode", true)
+        .map_err(|error| error.to_string())?;
+    emit_overlay_runtime_status(app);
+    Ok(())
+}
+
+fn finish_tree_edit_mode(app: &tauri::AppHandle) {
+    let runtime = app.state::<OverlayRuntime>();
+    if let Some(window) = app.get_webview_window("tree-overlay") {
+        if let (Ok(position), Ok(size)) = (window.outer_position(), window.inner_size()) {
+            let scale = window.scale_factor().unwrap_or(1.0);
+            let status = runtime
+                .poe_status
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .clone();
+            let (position_x, position_y, coordinate_mode) = if let Some(client) = status.client_rect
+            {
+                (
+                    position.x - client.x,
+                    position.y - client.y,
+                    CoordinateMode::Game,
+                )
+            } else {
+                (position.x, position.y, CoordinateMode::Screen)
+            };
+            let layout = TreeOverlayLayout {
+                position_x,
+                position_y,
+                width: size.width as f64 / scale,
+                height: size.height as f64 / scale,
+                coordinate_mode,
+            };
+            {
+                let mut preferences = runtime
+                    .tree_preferences
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                preferences.position_x = layout.position_x;
+                preferences.position_y = layout.position_y;
+                preferences.width = layout.width;
+                preferences.height = layout.height;
+                preferences.coordinate_mode = layout.coordinate_mode;
+            }
+            let _ = app.emit_to("dashboard", "tree-overlay-layout-changed", layout);
+        }
+        runtime.tree_editing.store(false, Ordering::SeqCst);
+        let _ = window.set_resizable(false);
+        let ignore_cursor = !runtime.detail_mode.load(Ordering::SeqCst);
+        let _ = window.set_ignore_cursor_events(ignore_cursor);
+    }
+    let _ = app.emit_to("tree-overlay", "tree-overlay-edit-mode", false);
+    sync_overlay_window(app);
+    emit_overlay_runtime_status(app);
+}
+
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TreeOverlayLayout {
+    position_x: i32,
+    position_y: i32,
+    width: f64,
+    height: f64,
+    coordinate_mode: CoordinateMode,
+}
+
+#[tauri::command]
+pub fn start_tree_overlay_dragging(app: tauri::AppHandle) -> Result<(), String> {
+    app.get_webview_window("tree-overlay")
+        .ok_or_else(|| "tree overlay window is unavailable".to_string())?
+        .start_dragging()
         .map_err(|error| error.to_string())
 }
 
@@ -177,6 +340,8 @@ pub fn apply_overlay_preferences(
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         native.position_x = preferences.position_x;
         native.position_y = preferences.position_y;
+        native.width = preferences.width.max(260.0);
+        native.height = preferences.height.max(140.0);
         native.coordinate_mode = preferences
             .coordinate_mode
             .unwrap_or(CoordinateMode::Screen);
@@ -233,12 +398,23 @@ pub fn begin_overlay_edit_mode(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn toggle_overlay_edit_mode(app: tauri::AppHandle) -> Result<(), String> {
-    if app.state::<OverlayRuntime>().editing.load(Ordering::SeqCst) {
-        finish_edit_mode(&app);
+pub fn toggle_overlay_edit_mode(include_tree: bool, app: tauri::AppHandle) -> Result<(), String> {
+    let runtime = app.state::<OverlayRuntime>();
+    if runtime.editing.load(Ordering::SeqCst) || runtime.tree_editing.load(Ordering::SeqCst) {
+        finish_all_editing(&app);
         Ok(())
     } else {
-        start_edit_mode(&app)
+        start_edit_mode(&app)?;
+        if include_tree {
+            runtime
+                .tree_visible_before_edit
+                .store(runtime.tree_mode.load(Ordering::SeqCst), Ordering::SeqCst);
+            if let Err(error) = start_tree_edit_mode(&app) {
+                finish_edit_mode(&app);
+                return Err(error);
+            }
+        }
+        Ok(())
     }
 }
 
@@ -250,6 +426,9 @@ fn start_edit_mode(app: &tauri::AppHandle) -> Result<(), String> {
 
     runtime.desired_visible.store(true, Ordering::SeqCst);
     runtime.editing.store(true, Ordering::SeqCst);
+    window
+        .set_resizable(true)
+        .map_err(|error| error.to_string())?;
     window.show().map_err(|error| error.to_string())?;
     window
         .set_ignore_cursor_events(false)
@@ -264,8 +443,22 @@ fn start_edit_mode(app: &tauri::AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn end_overlay_edit_mode(app: tauri::AppHandle) -> Result<(), String> {
-    finish_edit_mode(&app);
+    finish_all_editing(&app);
     Ok(())
+}
+
+fn finish_all_editing(app: &tauri::AppHandle) {
+    let runtime = app.state::<OverlayRuntime>();
+    if runtime.tree_editing.load(Ordering::SeqCst) {
+        runtime.tree_mode.store(
+            runtime.tree_visible_before_edit.load(Ordering::SeqCst),
+            Ordering::SeqCst,
+        );
+        finish_tree_edit_mode(app);
+    }
+    if runtime.editing.load(Ordering::SeqCst) {
+        finish_edit_mode(app);
+    }
 }
 
 fn finish_edit_mode(app: &tauri::AppHandle) {
@@ -282,13 +475,40 @@ fn finish_edit_mode(app: &tauri::AppHandle) {
         }
         let _ = app.emit_to("dashboard", "overlay-position-changed", position);
     }
+    if let Some(window) = app.get_webview_window("overlay") {
+        if let Ok(size) = window.inner_size() {
+            let scale = window.scale_factor().unwrap_or(1.0);
+            let overlay_size = OverlaySize {
+                width: size.width as f64 / scale,
+                height: size.height as f64 / scale,
+            };
+            {
+                let mut preferences = runtime
+                    .preferences
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                preferences.width = overlay_size.width;
+                preferences.height = overlay_size.height;
+            }
+            let _ = app.emit_to("dashboard", "overlay-size-changed", overlay_size);
+        }
+    }
     runtime.editing.store(false, Ordering::SeqCst);
     if let Some(window) = app.get_webview_window("overlay") {
-        let _ = window.set_ignore_cursor_events(true);
+        let _ = window.set_resizable(false);
+        let ignore_cursor = !runtime.detail_mode.load(Ordering::SeqCst);
+        let _ = window.set_ignore_cursor_events(ignore_cursor);
     }
     let _ = app.emit_to("overlay", "overlay-edit-mode", false);
     sync_overlay_window(app);
     emit_overlay_runtime_status(app);
+}
+
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OverlaySize {
+    width: f64,
+    height: f64,
 }
 
 fn set_overlay_visibility(app: &tauri::AppHandle, visible: bool) {
@@ -307,6 +527,7 @@ fn overlay_runtime_status(app: &tauri::AppHandle) -> OverlayRuntimeStatus {
     OverlayRuntimeStatus {
         visible: runtime.desired_visible.load(Ordering::SeqCst),
         editing: runtime.editing.load(Ordering::SeqCst),
+        tree_mode: runtime.tree_mode.load(Ordering::SeqCst),
     }
 }
 
@@ -441,9 +662,58 @@ fn sync_overlay_window(app: &tauri::AppHandle) {
             let _ = app.emit_to("dashboard", "overlay-position-changed", recovered);
         }
     }
+    if !editing {
+        let _ = window.set_size(Size::Logical(LogicalSize::new(
+            preferences.width,
+            preferences.height,
+        )));
+    }
 
     if should_display_overlay(
         desired_visible,
+        editing,
+        preferences.auto_hide_when_game_inactive,
+        status.state,
+    ) {
+        let _ = window.show();
+    } else {
+        let _ = window.hide();
+    }
+
+    sync_tree_overlay_window(app, &status);
+}
+
+fn sync_tree_overlay_window(app: &tauri::AppHandle, status: &PoeWindowStatus) {
+    let Some(window) = app.get_webview_window("tree-overlay") else {
+        return;
+    };
+    let runtime = app.state::<OverlayRuntime>();
+    let editing = runtime.tree_editing.load(Ordering::SeqCst);
+    let visible = runtime.tree_mode.load(Ordering::SeqCst);
+    let preferences = *runtime
+        .tree_preferences
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if !editing {
+        let native = NativeOverlayPreferences {
+            position_x: preferences.position_x,
+            position_y: preferences.position_y,
+            width: preferences.width,
+            height: preferences.height,
+            coordinate_mode: preferences.coordinate_mode,
+            auto_hide_when_game_inactive: preferences.auto_hide_when_game_inactive,
+        };
+        let (x, y) = resolved_overlay_position(&native, status);
+        let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
+    }
+    if !editing {
+        let _ = window.set_size(Size::Logical(LogicalSize::new(
+            preferences.width,
+            preferences.height,
+        )));
+    }
+    if should_display_overlay(
+        visible,
         editing,
         preferences.auto_hide_when_game_inactive,
         status.state,
@@ -523,6 +793,8 @@ mod tests {
         let preferences = NativeOverlayPreferences {
             position_x: 24,
             position_y: 80,
+            width: 420.0,
+            height: 240.0,
             coordinate_mode: CoordinateMode::Game,
             auto_hide_when_game_inactive: true,
         };
@@ -574,5 +846,9 @@ mod tests {
         let runtime = OverlayRuntime::default();
         assert!(runtime.desired_visible.load(Ordering::SeqCst));
         assert!(!runtime.editing.load(Ordering::SeqCst));
+        assert!(!runtime.detail_mode.load(Ordering::SeqCst));
+        assert!(!runtime.tree_mode.load(Ordering::SeqCst));
+        assert!(!runtime.tree_editing.load(Ordering::SeqCst));
+        assert!(!runtime.tree_visible_before_edit.load(Ordering::SeqCst));
     }
 }

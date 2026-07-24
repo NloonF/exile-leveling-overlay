@@ -1,4 +1,5 @@
 import { TREE_DATA_LOOKUP } from "../../state/tree";
+import { buildTreeStyle } from "../../state/tree/svg";
 import type { UrlTree } from "../../state/tree/url-tree";
 import { formStyles } from "../../styles";
 import { randomId } from "../../utility";
@@ -18,6 +19,7 @@ import { HiChevronLeft, HiChevronRight } from "react-icons/hi";
 
 interface SkillTreeViewerProps {
   urlTrees: UrlTree.Data[];
+  variant?: "sidebar" | "overlay";
 }
 
 interface RenderData {
@@ -29,7 +31,10 @@ interface RenderData {
   masteries: UrlTreeDelta["masteries"];
 }
 
-export function SkillTreeViewer({ urlTrees }: SkillTreeViewerProps) {
+export function SkillTreeViewer({
+  urlTrees,
+  variant = "sidebar",
+}: SkillTreeViewerProps) {
   const svgDivRef = useRef<HTMLDivElement>(null);
   const [curIndex, setCurIndex] = useState<number>(0);
   const [renderData, setRenderData] = useState<RenderData>();
@@ -53,7 +58,7 @@ export function SkillTreeViewer({ urlTrees }: SkillTreeViewerProps) {
         };
       }
 
-      const [skillTree, nodes, svg, viewBox, compiledStyle] =
+      const [skillTree, nodes, svg, viewBox] =
         await TREE_DATA_LOOKUP[currentTree.version];
 
       const urlTreeDelta = buildUrlTreeDelta(
@@ -70,7 +75,7 @@ export function SkillTreeViewer({ urlTrees }: SkillTreeViewerProps) {
         viewBox,
       );
 
-      const style = compiledStyle({
+      const style = buildTreeStyle({
         styleId: styleId,
         backgroundColor: "#00000000",
         ascendancy: currentTree.ascendancy?.id,
@@ -135,13 +140,18 @@ export function SkillTreeViewer({ urlTrees }: SkillTreeViewerProps) {
   return (
     <>
       {renderData && (
-        <div className={classNames(styles.viewer)}>
+        <div
+          className={classNames(styles.viewer, {
+            [styles.overlay]: variant === "overlay",
+          })}
+        >
           {tooltipNodeId && (
             <NodeTooltip
               skillTree={renderData.skillTree}
               nodes={renderData.nodes}
               masteries={renderData.masteries}
               nodeId={tooltipNodeId}
+              variant={variant}
             />
           )}
           <div className={styles.viewport}>
@@ -189,6 +199,7 @@ interface NodeTooltipProps {
   nodes: SkillTree.NodeLookup;
   nodeId: keyof SkillTree.NodeLookup;
   masteries: Record<string, string>;
+  variant: "sidebar" | "overlay";
 }
 
 function NodeTooltip({
@@ -196,6 +207,7 @@ function NodeTooltip({
   nodes,
   masteries,
   nodeId,
+  variant,
 }: NodeTooltipProps) {
   const node = nodes[nodeId];
 
@@ -218,7 +230,10 @@ function NodeTooltip({
   }
 
   return (
-    <SidebarTooltip title={node.text}>
+    <SidebarTooltip
+      title={node.text}
+      className={variant === "overlay" ? styles.overlayTooltip : undefined}
+    >
       {parts.flatMap<JSX.Element>((x, i) => (
         <React.Fragment key={i}>
           {i !== 0 && <hr />}

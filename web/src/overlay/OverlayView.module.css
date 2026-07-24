@@ -6,7 +6,7 @@
 :global(html[data-window="overlay"] body),
 :global(html[data-window="overlay"] #root) {
   width: 100%;
-  min-height: 100%;
+  height: 100%;
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -14,17 +14,22 @@
 }
 
 .overlayRoot {
-  width: 25rem;
+  width: 100vw;
+  height: 100vh;
   padding: 0.5rem;
+  overflow: hidden;
   transform-origin: top left;
   transition: opacity 120ms ease;
 }
 
 .card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  width: 100%;
+  height: 100%;
   padding: 0.8rem 0.9rem;
+  overflow: hidden;
   border: 1px solid rgb(210 210 210 / 32%);
   border-radius: 0.5rem;
   background: rgb(13 13 13 / 88%);
@@ -32,6 +37,15 @@
   color: #f4f4f4;
   font-size: 1rem;
   user-select: none;
+}
+
+.fitContent {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 0.55rem;
+  transform-origin: top center;
+  transition: transform 140ms ease-out;
 }
 
 .card header,
@@ -60,6 +74,33 @@
 .primary {
   font-size: 1.15rem;
   font-weight: 700;
+}
+
+.primaryRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+
+.completeStep {
+  display: flex;
+  flex: 0 0 auto;
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+  border: 0;
+  color: #d9b96e;
+  background: transparent;
+  cursor: pointer;
+}
+
+.completeStep:hover {
+  color: #f1d792;
+}
+
+.completeStep svg {
+  width: 100%;
+  height: 100%;
 }
 
 .previousCheckpoint {
@@ -113,12 +154,33 @@
 }
 
 .finishEditing {
-  align-self: flex-end;
+  position: absolute;
+  z-index: 5;
+  right: 1rem;
+  bottom: 1rem;
   padding: 0.3rem 0.55rem;
   border: 1px solid #d9b96e;
   border-radius: 0.25rem;
   background: #2b2518;
   cursor: pointer;
+}
+
+.resizeHandle {
+  position: absolute;
+  z-index: 6;
+  right: 0;
+  bottom: 0;
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: nwse-resize;
+  background: linear-gradient(
+    135deg,
+    transparent 45%,
+    #d9b96e 46% 55%,
+    transparent 56% 68%,
+    #d9b96e 69% 78%,
+    transparent 79%
+  );
 }
 
 .loading {

@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use serde_json::Value;
+use serde_json::{json, Value};
 use tauri::{Emitter, State};
 
 #[derive(Default)]
@@ -31,13 +31,28 @@ pub fn publish_overlay_snapshot(
     app: tauri::AppHandle,
 ) -> Result<(), String> {
     cache.publish(snapshot.clone())?;
-    app.emit_to("overlay", "overlay-snapshot", snapshot)
+    app.emit_to("overlay", "overlay-snapshot", snapshot.clone())
+        .map_err(|error| error.to_string())?;
+    app.emit_to("tree-overlay", "overlay-snapshot", snapshot)
         .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
 pub fn get_overlay_snapshot(cache: State<'_, SnapshotCache>) -> Result<Option<Value>, String> {
     cache.latest()
+}
+
+#[tauri::command]
+pub fn request_overlay_step_completion(
+    edge_index: usize,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    app.emit_to(
+        "dashboard",
+        "overlay-step-completion-requested",
+        json!({ "edgeIndex": edge_index }),
+    )
+    .map_err(|error| error.to_string())
 }
 
 #[cfg(test)]

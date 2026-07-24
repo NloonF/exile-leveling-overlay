@@ -1,0 +1,84 @@
+.root {
+  width: 100vw;
+  height: 100vh;
+  padding: 0.5rem;
+  overflow: hidden;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  gap: 0.45rem;
+  padding: 0.7rem;
+  overflow: hidden;
+  border: 1px solid rgb(210 210 210 / 32%);
+  border-radius: 0.5rem;
+  background: rgb(13 13 13 / 92%);
+  box-shadow: 0 0.35rem 1.2rem rgb(0 0 0 / 55%);
+  color: #f4f4f4;
+}
+
+.card header {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: #d9b96e;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
+}
+
+.dragHandle {
+  cursor: move;
+}
+
+.editing {
+  border-color: #d9b96e;
+  box-shadow: inset 0 0 0 2px rgb(217 185 110 / 35%);
+}
+
+.viewer {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.empty,
+.loading {
+  margin: auto;
+  color: #c8c8c8;
+}
+
+.finishEditing {
+  position: absolute;
+  z-index: 5;
+  right: 1rem;
+  bottom: 1rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid #d9b96e;
+  border-radius: 0.25rem;
+  background: #2b2518;
+  cursor: pointer;
+}
+
+.resizeHandle {
+  position: absolute;
+  z-index: 6;
+  right: 0;
+  bottom: 0;
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: nwse-resize;
+  background: linear-gradient(
+    135deg,
+    transparent 45%,
+    #d9b96e 46% 55%,
+    transparent 56% 68%,
+    #d9b96e 69% 78%,
+    transparent 79%
+  );
+}

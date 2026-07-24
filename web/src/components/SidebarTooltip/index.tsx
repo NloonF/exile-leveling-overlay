@@ -4,11 +4,12 @@ import type { ReactNode } from "react";
 
 type SidebarTooltip = {
   title: ReactNode;
+  className?: string;
 } & React.PropsWithChildren;
 
-export function SidebarTooltip({ title, children }: SidebarTooltip) {
+export function SidebarTooltip({ title, className, children }: SidebarTooltip) {
   return (
-    <div className={classNames(styles.tooltip)}>
+    <div className={classNames(styles.tooltip, className)}>
       <div className={classNames(styles.tooltipTitle)}>{title}</div>
 
       {children && (

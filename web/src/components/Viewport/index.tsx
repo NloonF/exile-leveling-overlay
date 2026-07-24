@@ -54,7 +54,7 @@ export function Viewport({
   const [worldRef, setWorldRef] = useState<HTMLDivElement | null>(null);
   const [prevSize, setPrevSize] = useState<ResizeObserverSize | null>(null);
 
-  const [getTransform, setTransform] = useMemo(() => {
+  const [getTransform, setTransform, setConstraints] = useMemo(() => {
     if (viewportRef === null || worldRef === null) return [];
 
     const viewportSelection = d3.select(viewportRef);
@@ -62,6 +62,14 @@ export function Viewport({
 
     const zoom = d3
       .zoom<HTMLDivElement, unknown>()
+      // D3 rejects Ctrl + drag by default. The overlay interaction shortcut
+      // uses Ctrl, so accept primary-button drags while that shortcut is held.
+      .filter(
+        (event) =>
+          event.type === "wheel" ||
+          event.type.startsWith("touch") ||
+          event.button === 0,
+      )
       .on("zoom", ({ transform }) => {
         worldSelection.style(
           "transform",
@@ -79,7 +87,11 @@ export function Viewport({
       return d3.zoomTransform(viewportRef);
     };
 
-    return [getTransform, setTransform];
+    const setConstraints = (_focus: Rect, fitScale: number) => {
+      zoom.scaleExtent([fitScale * 0.25, fitScale * 5]);
+    };
+
+    return [getTransform, setTransform, setConstraints];
   }, [viewportRef, worldRef]);
 
   useResizeObserver(viewportRef, (entry) => {
@@ -129,13 +141,14 @@ export function Viewport({
 
   useEffect(() => {
     if (viewportRef === null) return;
-    if (setTransform === undefined) return;
+    if (setTransform === undefined || setConstraints === undefined) return;
 
     const rect = viewportRef.getBoundingClientRect();
     const { newScale, newPos } = containRect(rect, intialFocus);
 
+    setConstraints(intialFocus, newScale);
     setTransform(newScale, newPos.x, newPos.y);
-  }, [intialFocus, viewportRef, setTransform]);
+  }, [intialFocus, viewportRef, setConstraints, setTransform]);
 
   return (
     <div ref={setViewportRef} className={classNames(styles.viewport)}>

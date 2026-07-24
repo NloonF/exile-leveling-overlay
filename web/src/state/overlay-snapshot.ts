@@ -8,6 +8,7 @@ import {
   logApiConnectionStateAtom,
 } from "./auto-progress";
 import { activeEdgeAtom, routeSelector } from "./route";
+import { urlTreesSelector } from "./tree/url-tree";
 
 export const overlaySnapshotAtom = atom(async (get) =>
   buildOverlaySnapshot({
@@ -19,6 +20,7 @@ export const overlaySnapshotAtom = atom(async (get) =>
     areas: Data.Areas,
     quests: Data.Quests,
     gems: Data.Gems,
+    trees: await get(urlTreesSelector),
     preferences: get(overlayPreferencesAtom),
   }),
 );

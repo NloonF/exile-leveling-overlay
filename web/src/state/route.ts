@@ -4,6 +4,7 @@ import { buildDataSelector } from "./build-data";
 import { configSelector } from "./config";
 import { requiredGemsSelector } from "./gem";
 import { routeFilesSelector } from "./route-files";
+import { autoProgressPausedAtom } from "./auto-progress";
 import type { RouteData } from "common";
 import { persistentAtom, transientAtomFamily } from ".";
 import { RESET } from "jotai/utils";
@@ -137,6 +138,24 @@ export const advanceRouteForAreaAtom = atom(
     if (nextEdgeIndex !== null) {
       set(activeEdgeIndex, [nextEdgeIndex]);
     }
+  },
+);
+
+export const manuallyCompleteRouteEdgeAtom = atom(
+  null,
+  async (get, set, requestedEdgeIndex: number) => {
+    const route = await get(routeSelector);
+    const nextEdgeIndex = get(activeEdgeAtom)[0] + 1;
+    if (
+      requestedEdgeIndex !== nextEdgeIndex ||
+      requestedEdgeIndex >= route.edges.length
+    ) {
+      return false;
+    }
+
+    set(autoProgressPausedAtom, true);
+    set(activeEdgeIndex, [requestedEdgeIndex]);
+    return true;
   },
 );
 
