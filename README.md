@@ -14,16 +14,18 @@ endorsed by Grinding Gear Games.
 
 - A Tauri 2 Windows application with a dashboard and transparent,
   click-through overlay.
-- Automatic checkpoint progression from the separately installed
-  [`exile-log-api`](https://github.com/HeartofPhos/exile-log-api) helper.
+- Automatic checkpoint progression from a built-in reader adapted from the
+  MIT-licensed [`exile-log-api`](https://github.com/HeartofPhos/exile-log-api)
+  project; no separate helper installation is required.
 - Current and previous checkpoint details, including quest hand-ins, vendor
   actions, route subtasks, and imported Path of Building gem rewards.
 - The original guide's fonts, colors, icons, and reward presentation.
 - Drag-only positioning, scaling, opacity, configurable global shortcuts, tray
   controls, and optional hiding while Path of Exile is in the background.
-- Native tracking of windowed and borderless `PathOfExile*.exe` game windows.
-- Reconnect diagnostics, a fake helper for development, automated protocol
-  tests, Windows CI, and an NSIS installer.
+- Native tracking of known Path of Exile 1 clients, without matching Path of
+  Exile 2.
+- Failure-only log-reader diagnostics, direct native events, signed-release
+  automation, checksums, provenance, an SBOM, and an NSIS installer.
 
 ## How it works
 
@@ -32,8 +34,9 @@ engine:
 
 1. The existing React and Jotai frontend remains responsible for routes,
    builds, imported Path of Building data, and campaign progress.
-2. A small WebSocket integration receives area-transition messages from
-   `exile-log-api` at `ws://127.0.0.1:6754`.
+2. When auto-progress is enabled, the Rust backend locates Path of Exile's
+   `logs/LatestClient.txt`, follows new complete lines, and emits only typed
+   generated-area events directly to the Tauri dashboard.
 3. Entering the expected next area advances exactly one route checkpoint.
 4. The frontend converts the active route state into a versioned, read-only
    overlay snapshot.
@@ -53,12 +56,13 @@ The installer is per-user and does not require administrator privileges.
 
 1. Download `Exile Leveling Overlay_*_x64-setup.exe` from the project
    [Releases](https://github.com/NloonF/exile-leveling-overlay/releases) page.
-2. Install and start `exile-log-api` separately. Version `0.0.2` is the
-   currently verified compatibility target.
-3. Start Path of Exile and Exile Leveling Overlay.
-4. Select or import a build and route in the dashboard.
-5. Enable automatic progression and show the overlay.
-6. Use **Edit layout for 30s** when you want to drag the overlay.
+2. Start Path of Exile and Exile Leveling Overlay. The log reader remains idle
+   until auto-progress is enabled and stops again when it is disabled.
+3. Select or import a build and route in the dashboard.
+4. Enable automatic progression and show the overlay.
+5. Open **Overlay settings**, choose **Edit layout**, and drag the overlay.
+   Choose **Edit layout** again, or **Finish editing** on the overlay, when
+   finished.
 
 Default shortcuts:
 
@@ -69,9 +73,10 @@ The shortcuts, scale, opacity, visibility behavior, and position can be
 changed from the dashboard. If Path of Exile is not detected, the overlay
 continues working in manual-placement mode.
 
-The helper is not bundled because its upstream repository does not currently
-publish redistribution terms. See the
-[helper bundling analysis](docs/helper-bundling-analysis.md).
+No game helper or background service needs to be installed separately. See
+the [integration record](docs/helper-bundling-analysis.md) for the design and
+the [tracking analysis](docs/latest-client-tracking-analysis.md) for possible
+future features.
 
 ## Development
 
@@ -94,7 +99,6 @@ Useful alternatives:
 
 - `npm run dev -w web` starts the original browser application.
 - `npm run dev:desktop -w web` starts the desktop-flavored Vite server.
-- `npm run fake-helper` starts a local interactive helper fixture.
 - `npm run build -w web` builds the browser application.
 - `npm run build:windows` builds the Windows NSIS installer.
 
@@ -111,7 +115,8 @@ Additional documentation:
 
 - [Windows setup](docs/windows-setup.md)
 - [Troubleshooting](docs/troubleshooting.md)
-- [Helper compatibility](docs/helper-compatibility.md)
+- [Integrated log reader](docs/helper-compatibility.md)
+- [LatestClient tracking analysis](docs/latest-client-tracking-analysis.md)
 - [Release checklist](docs/release-checklist.md)
 - [Changelog](CHANGELOG.md)
 
@@ -142,6 +147,10 @@ The Windows overlay, desktop integration, automatic progression pipeline, and
 release tooling are maintained in this fork by
 [NloonF](https://github.com/NloonF) and its contributors.
 
+The integrated log-reader behavior is adapted from the MIT-licensed
+[`exile-log-api`](https://github.com/HeartofPhos/exile-log-api), also created
+by HeartofPhos. Its original license notice is bundled with the application.
+
 Path of Exile and all associated names and assets are property of Grinding
 Gear Games. Source Sans Pro is distributed under the SIL Open Font License;
 its license is bundled under `src-tauri/licenses`.
@@ -152,5 +161,5 @@ This project remains available under the [MIT License](LICENSE). The original
 HeartofPhos copyright notice is retained, with an additional notice covering
 the modifications made by this fork.
 
-`exile-log-api` is a separate project and is not distributed as part of this
-repository or installer.
+The adapted `exile-log-api` portions retain their upstream MIT notice in
+`src-tauri/licenses/exile-log-api-MIT.txt`.

@@ -18,7 +18,7 @@ type MigratorMap = Map<
 export const NO_MIGRATORS = new Map();
 
 export function BuildMigratorMap(
-  migrators: [Versioned["version"], Versioned["version"], Migrator][]
+  migrators: [Versioned["version"], Versioned["version"], Migrator][],
 ) {
   const migratorMap: MigratorMap = new Map();
   for (const [src, dst, migrator] of migrators) {
@@ -38,7 +38,7 @@ function FindMigratorChain(
   currentVersion: Versioned["version"],
   expectedVersion: Versioned["version"],
   migratorMap: MigratorMap,
-  visited: Set<Versioned["version"]>
+  visited: Set<Versioned["version"]>,
 ): Migrator[] | null {
   const migrators = migratorMap.get(currentVersion);
   if (migrators === undefined) return null;
@@ -54,7 +54,7 @@ function FindMigratorChain(
       version,
       expectedVersion,
       migratorMap,
-      visited
+      visited,
     );
     if (migratorChain !== null) return [migrator, ...migratorChain];
   }
@@ -73,7 +73,7 @@ export function ApplyMigratorChain<T>(migratorChain: Migrator[], data: any): T {
 export function getPersistent<T>(
   key: string,
   expectedVersion: number,
-  migratorMap: MigratorMap
+  migratorMap: MigratorMap,
 ) {
   const json = localStorage.getItem(key);
   if (!json) return null;
@@ -85,7 +85,7 @@ export function getPersistent<T>(
       data.version,
       expectedVersion,
       migratorMap,
-      new Set()
+      new Set(),
     );
 
     if (migratorChain !== null) {
@@ -117,15 +117,18 @@ export function clearPersistent(key: string) {
 export function globImportLazy<T>(
   importLookup: Record<string, () => Promise<any>>,
   keyTransform: (key: string) => string,
-  valueTransform: (value: any) => T | Promise<T>
+  valueTransform: (value: any) => T | Promise<T>,
 ) {
-  return Object.entries(importLookup).reduce((record, [key, value]) => {
-    record[keyTransform(key)] = new PLazy((resolve) =>
-      value().then((x) => resolve(valueTransform(x)))
-    );
+  return Object.entries(importLookup).reduce(
+    (record, [key, value]) => {
+      record[keyTransform(key)] = new PLazy((resolve) =>
+        value().then((x) => resolve(valueTransform(x))),
+      );
 
-    return record;
-  }, {} as Record<string, PromiseLike<T>>);
+      return record;
+    },
+    {} as Record<string, PromiseLike<T>>,
+  );
 }
 
 const idCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -133,7 +136,7 @@ export function randomId(length: number) {
   let result = "";
   for (let i = 0; i < length; i++) {
     result += idCharacters.charAt(
-      Math.floor(Math.random() * idCharacters.length)
+      Math.floor(Math.random() * idCharacters.length),
     );
   }
 
@@ -148,7 +151,7 @@ export function decodeBase64Url(value: string) {
 export type UrlRewriter = (url: string) => string | null;
 export function getRewriteUrl(
   stringOrUrl: string,
-  urlRewriters: UrlRewriter[]
+  urlRewriters: UrlRewriter[],
 ) {
   for (const urlRewriter of urlRewriters) {
     const url = urlRewriter(stringOrUrl);
@@ -158,19 +161,22 @@ export function getRewriteUrl(
   return null;
 }
 
-const CORS_PROXY_URL = "https://cors-proxy-weld-sigma.vercel.app";
-
 export async function fetchStringOrUrl(
   stringOrUrl: string,
-  urlRewriters: UrlRewriter[]
+  urlRewriters: UrlRewriter[],
 ) {
   let value: string = stringOrUrl;
   const url = getRewriteUrl(stringOrUrl, urlRewriters);
   if (url) {
-    value = await fetch(`${CORS_PROXY_URL}/${url}`).then((x) => {
-      if (x.status >= 200 && x.status <= 299) return x.text();
-      return Promise.reject("download failed");
-    });
+    if ("__TAURI_INTERNALS__" in window) {
+      const { invoke } = await import("@tauri-apps/api/core");
+      value = await invoke<string>("fetch_import_url", { url });
+    } else {
+      value = await fetch(url).then((response) => {
+        if (response.ok) return response.text();
+        return Promise.reject("download failed");
+      });
+    }
   }
 
   return value;

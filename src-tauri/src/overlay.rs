@@ -1,22 +1,20 @@
 use std::{
     sync::{
-        atomic::{AtomicBool, AtomicU64, Ordering},
-        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+        Mutex,
     },
     thread,
     time::Duration,
 };
 
 use serde::{Deserialize, Serialize};
-use tauri::{Emitter, LogicalSize, Manager, PhysicalPosition, Position, Size, State};
+use tauri::{Emitter, LogicalSize, Manager, PhysicalPosition, Position, Size};
 
 use crate::poe_window::{PoeWindowState, PoeWindowStatus};
 
-const EDIT_MODE_DURATION: Duration = Duration::from_secs(30);
 const POE_WINDOW_POLL_INTERVAL: Duration = Duration::from_millis(250);
 
 pub struct OverlayRuntime {
-    edit_generation: Arc<AtomicU64>,
     editing: AtomicBool,
     desired_visible: AtomicBool,
     preferences: Mutex<NativeOverlayPreferences>,
@@ -26,9 +24,8 @@ pub struct OverlayRuntime {
 impl Default for OverlayRuntime {
     fn default() -> Self {
         Self {
-            edit_generation: Arc::new(AtomicU64::new(0)),
             editing: AtomicBool::new(false),
-            desired_visible: AtomicBool::new(false),
+            desired_visible: AtomicBool::new(true),
             preferences: Mutex::new(NativeOverlayPreferences::default()),
             poe_status: Mutex::new(PoeWindowStatus::default()),
         }
@@ -42,6 +39,7 @@ enum CoordinateMode {
     Game,
 }
 
+#[derive(Clone, Copy)]
 struct NativeOverlayPreferences {
     position_x: i32,
     position_y: i32,
@@ -77,10 +75,18 @@ struct OverlayPosition {
     coordinate_mode: CoordinateMode,
 }
 
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OverlayRuntimeStatus {
+    visible: bool,
+    editing: bool,
+}
+
 pub fn initialise(app: &tauri::AppHandle) -> tauri::Result<()> {
     if let Some(window) = app.get_webview_window("overlay") {
         window.set_ignore_cursor_events(true)?;
     }
+    sync_overlay_window(app);
     start_poe_window_watcher(app.clone());
     Ok(())
 }
@@ -88,8 +94,7 @@ pub fn initialise(app: &tauri::AppHandle) -> tauri::Result<()> {
 pub fn toggle(app: &tauri::AppHandle) {
     let runtime = app.state::<OverlayRuntime>();
     let desired = !runtime.desired_visible.load(Ordering::SeqCst);
-    runtime.desired_visible.store(desired, Ordering::SeqCst);
-    sync_overlay_window(app);
+    set_overlay_visibility(app, desired);
 }
 
 #[tauri::command]
@@ -99,20 +104,19 @@ pub fn toggle_overlay(app: tauri::AppHandle) {
 
 #[tauri::command]
 pub fn show_overlay(app: tauri::AppHandle) -> Result<(), String> {
-    app.state::<OverlayRuntime>()
-        .desired_visible
-        .store(true, Ordering::SeqCst);
-    sync_overlay_window(&app);
+    set_overlay_visibility(&app, true);
     Ok(())
 }
 
 #[tauri::command]
 pub fn hide_overlay(app: tauri::AppHandle) -> Result<(), String> {
-    app.state::<OverlayRuntime>()
-        .desired_visible
-        .store(false, Ordering::SeqCst);
-    sync_overlay_window(&app);
+    set_overlay_visibility(&app, false);
     Ok(())
+}
+
+#[tauri::command]
+pub fn get_overlay_runtime_status(app: tauri::AppHandle) -> OverlayRuntimeStatus {
+    overlay_runtime_status(&app)
 }
 
 #[tauri::command]
@@ -184,6 +188,38 @@ pub fn apply_overlay_preferences(
 }
 
 #[tauri::command]
+pub fn reset_overlay_position(app: tauri::AppHandle) -> Result<(), String> {
+    let runtime = app.state::<OverlayRuntime>();
+    let position = {
+        let status = runtime
+            .poe_status
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
+        let mut preferences = runtime
+            .preferences
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        preferences.position_x = 24;
+        preferences.position_y = 80;
+        preferences.coordinate_mode = if status.client_rect.is_some() {
+            CoordinateMode::Game
+        } else {
+            CoordinateMode::Screen
+        };
+        OverlayPosition {
+            position_x: preferences.position_x,
+            position_y: preferences.position_y,
+            coordinate_mode: preferences.coordinate_mode,
+        }
+    };
+    app.emit_to("dashboard", "overlay-position-changed", position)
+        .map_err(|error| error.to_string())?;
+    sync_overlay_window(&app);
+    Ok(())
+}
+
+#[tauri::command]
 pub fn start_overlay_dragging(app: tauri::AppHandle) -> Result<(), String> {
     app.get_webview_window("overlay")
         .ok_or_else(|| "overlay window is unavailable".to_string())?
@@ -192,16 +228,25 @@ pub fn start_overlay_dragging(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn begin_overlay_edit_mode(
-    runtime: State<'_, OverlayRuntime>,
-    app: tauri::AppHandle,
-) -> Result<(), String> {
+pub fn begin_overlay_edit_mode(app: tauri::AppHandle) -> Result<(), String> {
+    start_edit_mode(&app)
+}
+
+#[tauri::command]
+pub fn toggle_overlay_edit_mode(app: tauri::AppHandle) -> Result<(), String> {
+    if app.state::<OverlayRuntime>().editing.load(Ordering::SeqCst) {
+        finish_edit_mode(&app);
+        Ok(())
+    } else {
+        start_edit_mode(&app)
+    }
+}
+
+fn start_edit_mode(app: &tauri::AppHandle) -> Result<(), String> {
+    let runtime = app.state::<OverlayRuntime>();
     let window = app
         .get_webview_window("overlay")
         .ok_or_else(|| "overlay window is unavailable".to_string())?;
-    let generation = runtime.edit_generation.fetch_add(1, Ordering::SeqCst) + 1;
-    let generation_counter = Arc::clone(&runtime.edit_generation);
-    let app_for_timeout = app.clone();
 
     runtime.desired_visible.store(true, Ordering::SeqCst);
     runtime.editing.store(true, Ordering::SeqCst);
@@ -212,23 +257,13 @@ pub fn begin_overlay_edit_mode(
     window.set_focus().map_err(|error| error.to_string())?;
     app.emit_to("overlay", "overlay-edit-mode", true)
         .map_err(|error| error.to_string())?;
-
-    thread::spawn(move || {
-        thread::sleep(EDIT_MODE_DURATION);
-        if generation_counter.load(Ordering::SeqCst) == generation {
-            finish_edit_mode(&app_for_timeout);
-        }
-    });
+    emit_overlay_runtime_status(app);
 
     Ok(())
 }
 
 #[tauri::command]
-pub fn end_overlay_edit_mode(
-    runtime: State<'_, OverlayRuntime>,
-    app: tauri::AppHandle,
-) -> Result<(), String> {
-    runtime.edit_generation.fetch_add(1, Ordering::SeqCst);
+pub fn end_overlay_edit_mode(app: tauri::AppHandle) -> Result<(), String> {
     finish_edit_mode(&app);
     Ok(())
 }
@@ -253,6 +288,34 @@ fn finish_edit_mode(app: &tauri::AppHandle) {
     }
     let _ = app.emit_to("overlay", "overlay-edit-mode", false);
     sync_overlay_window(app);
+    emit_overlay_runtime_status(app);
+}
+
+fn set_overlay_visibility(app: &tauri::AppHandle, visible: bool) {
+    let runtime = app.state::<OverlayRuntime>();
+    runtime.desired_visible.store(visible, Ordering::SeqCst);
+    if !visible && runtime.editing.load(Ordering::SeqCst) {
+        finish_edit_mode(app);
+    } else {
+        sync_overlay_window(app);
+        emit_overlay_runtime_status(app);
+    }
+}
+
+fn overlay_runtime_status(app: &tauri::AppHandle) -> OverlayRuntimeStatus {
+    let runtime = app.state::<OverlayRuntime>();
+    OverlayRuntimeStatus {
+        visible: runtime.desired_visible.load(Ordering::SeqCst),
+        editing: runtime.editing.load(Ordering::SeqCst),
+    }
+}
+
+fn emit_overlay_runtime_status(app: &tauri::AppHandle) {
+    let _ = app.emit_to(
+        "dashboard",
+        "overlay-runtime-status",
+        overlay_runtime_status(app),
+    );
 }
 
 fn capture_position(app: &tauri::AppHandle) -> Option<OverlayPosition> {
@@ -349,14 +412,34 @@ fn sync_overlay_window(app: &tauri::AppHandle) {
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .clone();
-    let preferences = runtime
+    let preferences = *runtime
         .preferences
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
 
     if !editing {
         let (x, y) = resolved_overlay_position(&preferences, &status);
-        let _ = window.set_position(Position::Physical(PhysicalPosition::new(x, y)));
+        let (visible_x, visible_y) = visible_overlay_position(&window, x, y);
+        let _ = window.set_position(Position::Physical(PhysicalPosition::new(
+            visible_x, visible_y,
+        )));
+        if (visible_x, visible_y) != (x, y) {
+            let recovered = OverlayPosition {
+                position_x: visible_x,
+                position_y: visible_y,
+                coordinate_mode: CoordinateMode::Screen,
+            };
+            {
+                let mut stored = runtime
+                    .preferences
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                stored.position_x = recovered.position_x;
+                stored.position_y = recovered.position_y;
+                stored.coordinate_mode = recovered.coordinate_mode;
+            }
+            let _ = app.emit_to("dashboard", "overlay-position-changed", recovered);
+        }
     }
 
     if should_display_overlay(
@@ -369,6 +452,36 @@ fn sync_overlay_window(app: &tauri::AppHandle) {
     } else {
         let _ = window.hide();
     }
+}
+
+fn visible_overlay_position(window: &tauri::WebviewWindow, x: i32, y: i32) -> (i32, i32) {
+    let size = window.outer_size().ok();
+    let width = size.map_or(80, |value| value.width.max(80)) as i32;
+    let height = size.map_or(40, |value| value.height.max(40)) as i32;
+    let monitors = window.available_monitors().unwrap_or_default();
+    let intersects = monitors.iter().any(|monitor| {
+        let position = monitor.position();
+        let monitor_size = monitor.size();
+        let visible_width =
+            (x + width).min(position.x + monitor_size.width as i32) - x.max(position.x);
+        let visible_height =
+            (y + height).min(position.y + monitor_size.height as i32) - y.max(position.y);
+        visible_width >= 80.min(width) && visible_height >= 40.min(height)
+    });
+    if intersects {
+        return (x, y);
+    }
+
+    window
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| monitors.into_iter().next())
+        .map(|monitor| {
+            let position = monitor.position();
+            (position.x + 24, position.y + 80)
+        })
+        .unwrap_or((24, 80))
 }
 
 fn resolved_overlay_position(
@@ -397,8 +510,11 @@ fn should_display_overlay(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::Ordering;
+
     use super::{
-        resolved_overlay_position, should_display_overlay, CoordinateMode, NativeOverlayPreferences,
+        resolved_overlay_position, should_display_overlay, CoordinateMode,
+        NativeOverlayPreferences, OverlayRuntime,
     };
     use crate::poe_window::{ClientRect, PoeWindowState, PoeWindowStatus};
 
@@ -451,5 +567,12 @@ mod tests {
             true,
             PoeWindowState::Background
         ));
+    }
+
+    #[test]
+    fn overlay_is_enabled_by_default() {
+        let runtime = OverlayRuntime::default();
+        assert!(runtime.desired_visible.load(Ordering::SeqCst));
+        assert!(!runtime.editing.load(Ordering::SeqCst));
     }
 }

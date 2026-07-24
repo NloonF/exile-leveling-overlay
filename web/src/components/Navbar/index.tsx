@@ -1,5 +1,4 @@
 import { useAtomValue } from "jotai";
-import { HelperConnectionStatus } from "../HelperConnectionStatus";
 import { routeSelector } from "../../state/route";
 import { routeFilesSelector } from "../../state/route-files";
 import { borderListStyles, interactiveStyles } from "../../styles";
@@ -9,6 +8,7 @@ import React, { useEffect, useState } from "react";
 import {
   FaBars,
   FaGithub,
+  FaInfoCircle,
   FaMap,
   FaRegClipboard,
   FaTools,
@@ -74,7 +74,6 @@ export function Navbar({}: NavbarProps) {
           [styles.expand]: navExpand,
         })}
       >
-        <HelperConnectionStatus />
         <button onClick={() => setNavExpand(!navExpand)}>
           <FaBars
             aria-label="Menu"
@@ -155,13 +154,22 @@ export function Navbar({}: NavbarProps) {
               }}
             />
             <NavbarItem
+              label="About"
+              expand={navExpand}
+              icon={<FaInfoCircle className={classNames("inlineIcon")} />}
+              onClick={() => {
+                navigate("/about");
+                setNavExpand(false);
+              }}
+            />
+            <NavbarItem
               label="Project on Github"
               expand={navExpand}
               icon={<FaGithub className={classNames("inlineIcon")} />}
               onClick={() => {
                 window
                   .open(
-                    "https://github.com/HeartofPhos/exile-leveling",
+                    "https://github.com/NloonF/exile-leveling-overlay",
                     "_blank",
                   )
                   ?.focus();

@@ -8,7 +8,7 @@ const statusLabels = {
   inactive: "Auto-progress off",
   active: "Connected",
   paused: "Auto-progress paused",
-  disconnected: "Waiting for log helper",
+  disconnected: "Waiting for log reader",
   complete: "Guide complete",
 } as const;
 
@@ -63,6 +63,22 @@ export function OverlayView() {
   }, []);
 
   useEffect(() => {
+    if (!editing) {
+      return;
+    }
+    const finishOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      void import("@tauri-apps/api/core").then(({ invoke }) =>
+        invoke("end_overlay_edit_mode"),
+      );
+    };
+    window.addEventListener("keydown", finishOnEscape);
+    return () => window.removeEventListener("keydown", finishOnEscape);
+  }, [editing]);
+
+  useEffect(() => {
     const root = rootRef.current;
     if (root === null || snapshot === null) {
       return;
@@ -103,7 +119,7 @@ export function OverlayView() {
       data-detail={showDetails}
       style={{
         opacity: preferences.opacity,
-        transform: `scale(${preferences.scale})`,
+        transform: `scale(${Math.min(preferences.scale, 1)})`,
       }}
     >
       <article className={styles.card}>

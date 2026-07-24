@@ -1,31 +1,25 @@
-# exile-log-api compatibility
+# Integrated log reader
 
-The desktop app targets the source-observed behaviour of `exile-log-api`
-`v0.0.2` at `ws://127.0.0.1:6754`.
+The desktop app includes a reader adapted from the MIT-licensed
+[`exile-log-api`](https://github.com/HeartofPhos/exile-log-api). It runs inside
+the Tauri process; users do not install or start a separate helper.
 
-The helper sends text frames copied from Path of Exile's client log. An area
-transition contains:
+When auto-progress is enabled, the reader locates
+`logs/LatestClient.txt` from an explicitly supported Path of Exile 1
+executable, attaches at the current end of the file, and examines only new
+complete lines. It converts matching records into typed Tauri events:
 
 ```text
 Generating level <number> area "<area-id>"
 ```
 
-`logApiProtocol.ts` is the only module that interprets this wire format. It
-returns a typed `AreaEnteredEvent` for matching frames and `null` for startup,
-connection, diagnostic, binary, or malformed traffic. Unknown but
-well-formed area identifiers remain valid events; route state decides whether
-they advance the guide.
+No WebSocket, localhost port, raw-log frontend API, or external-helper
+fallback is exposed. Disabling auto-progress detaches the tailer. A manual
+`LatestClient.txt` path is available under **Advanced log location** for
+unusual installations or process-access restrictions.
 
-`logApiClient.ts` reconnects after 1, 2, 4, 8, 16, then at most 30 seconds.
-Successful connections reset that sequence. Diagnostics expose only the
-connection state, receive time, normalised area identifier/level, or an
-unrecognised-message marker; raw helper frames are not retained.
-
-The fixtures under `tests/fixtures/log-api` are sanitised and source-derived.
-The installed Windows application has successfully connected to the official
-`v0.0.2` helper and advanced from a live area transition. Do not record full
-client logs or user-identifying paths.
-
-For local testing, run `npm run fake-helper`. Its `area <id> [level]`,
-`unknown`, `malformed`, and `disconnect` commands exercise normal events,
-diagnostics, and reconnect behaviour without reading a Path of Exile log.
+The native tailer handles game restarts, file replacement/truncation,
+multilingual bytes, incomplete final lines, and temporary read failures
+without replaying the existing session. Unknown but well-formed area
+identifiers remain valid typed events; route state decides whether they
+advance the guide.

@@ -14,6 +14,7 @@
     "@fontsource/source-sans-pro": "^5.2.5",
     "@react-hook/resize-observer": "^2.0.2",
     "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-dialog": "^2.4.0",
     "@tauri-apps/plugin-global-shortcut": "^2.3.2",
     "classnames": "^2.5.1",
     "common": "file:../common",

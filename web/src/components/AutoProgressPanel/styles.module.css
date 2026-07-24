@@ -1,13 +1,64 @@
 .panel {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--size-3) var(--size-5);
+  align-items: flex-start;
+  flex-direction: column;
+  gap: var(--size-2);
   padding: var(--size-3);
   border-bottom: var(--border-width) solid var(--accent-secondary);
   background: var(--highlight-primary);
   color: var(--on-primary);
   font-size: 0.875rem;
+}
+
+.error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-1);
+  width: 100%;
+  padding: var(--size-2) var(--size-3);
+  border-left: 0.25rem solid var(--error, #e47777);
+  background: color-mix(in srgb, var(--error, #e47777) 12%, transparent);
+}
+
+.advanced {
+  width: min(48rem, 100%);
+}
+
+.advanced summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.advanced p {
+  margin: var(--size-2) 0;
+  color: var(--text-secondary);
+}
+
+.advanced label {
+  display: flex;
+  align-items: stretch;
+  flex-direction: column;
+  gap: var(--size-1);
+}
+
+.advanced input {
+  appearance: auto;
+  width: 100%;
+  padding: var(--size-2);
+}
+
+.advanced div {
+  display: flex;
+  gap: var(--size-2);
+  margin-top: var(--size-2);
+}
+
+.advanced button {
+  padding: var(--size-2) var(--size-3);
+  border: var(--border-width) solid var(--accent-primary);
+  border-radius: var(--border-radius);
+  background: var(--secondary);
+  cursor: pointer;
 }
 
 .controls {
@@ -47,65 +98,9 @@
   opacity: 0.45;
 }
 
-.diagnostics {
-  display: flex;
-  flex: 1 1 34rem;
-  flex-wrap: wrap;
-  gap: var(--size-2) var(--size-5);
-}
-
-.diagnostics div {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--size-2);
-}
-
-.diagnostics dt {
-  color: var(--accent-primary);
-  font-weight: var(--font-heavy);
-}
-
-.diagnostics dd {
-  user-select: text;
-}
-
-.snapshot {
-  flex: 1 0 100%;
-  padding-top: var(--size-2);
-  border-top: var(--border-width) solid var(--accent-secondary);
-}
-
-.snapshot summary {
-  width: fit-content;
-  cursor: pointer;
-  font-weight: var(--font-heavy);
-}
-
-.snapshotCard {
-  display: flex;
-  flex-direction: column;
-  gap: var(--size-1);
-  max-width: 34rem;
-  margin-top: var(--size-2);
-  padding: var(--size-3);
-  border: var(--border-width) solid var(--accent-primary);
-  border-radius: var(--border-radius);
-  background: rgb(0 0 0 / 45%);
-}
-
-.snapshotCard small {
-  color: var(--accent-primary);
-}
-
 @media (max-width: 44rem) {
-  .panel,
-  .controls,
-  .diagnostics {
+  .controls {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .diagnostics {
-    flex-basis: auto;
   }
 }

@@ -4,11 +4,9 @@
 
 - 64-bit Windows 10 or Windows 11.
 - Path of Exile in borderless or windowed mode.
-- The separately installed `exile-log-api` helper, currently tested against
-  version `0.0.2`.
 
-The overlay does not bundle or start the helper. It expects the helper's
-loopback WebSocket at `ws://127.0.0.1:6754`.
+The installer includes the log-reading integration. Do not install or start a
+separate helper for normal use.
 
 ## Install
 
@@ -26,18 +24,18 @@ loopback WebSocket at `ws://127.0.0.1:6754`.
 ## Start a session
 
 1. Start Path of Exile.
-2. Start `exile-log-api` separately.
-3. Start Exile Leveling Overlay from the Start menu.
-4. Import or select a build and route in the dashboard.
-5. Enable auto-progress when ready.
-6. Show the overlay and use **Edit layout for 30s** to drag it.
+2. Start Exile Leveling Overlay from the Start menu.
+3. Import or select a build and route in the dashboard.
+4. Enable auto-progress when ready.
+5. Open **Overlay settings**, choose **Edit layout**, and drag it. Choose
+   **Edit layout** again, or **Finish editing** on the overlay, when finished.
 
-The dashboard reports helper connectivity and PoE-window detection
+The dashboard reports log-reader connectivity and PoE-window detection
 independently. If PoE is not detected, the overlay remains usable in manual
 placement mode.
 
 ## Uninstall
 
-Close the dashboard so the entire process exits, then uninstall **Exile
-Leveling Overlay** from Windows **Installed apps**. The helper is a separate
-program and is not removed.
+Close the dashboard so the entire process, including its built-in log reader,
+exits. Then uninstall **Exile Leveling Overlay** from Windows **Installed
+apps**.

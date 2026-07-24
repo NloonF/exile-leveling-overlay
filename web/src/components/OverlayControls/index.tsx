@@ -22,6 +22,11 @@ interface PoeWindowStatus {
   } | null;
 }
 
+interface OverlayRuntimeStatus {
+  visible: boolean;
+  editing: boolean;
+}
+
 function invokeDesktop(command: string, args?: Record<string, unknown>) {
   if (!("__TAURI_INTERNALS__" in window)) {
     return;
@@ -37,7 +42,17 @@ export function OverlayControls() {
   const [hotkeyStatus, setHotkeyStatus] =
     useState<HotkeyRegistrationStatus | null>(null);
   const [poeStatus, setPoeStatus] = useState<PoeWindowStatus | null>(null);
+  const [overlayStatus, setOverlayStatus] = useState<OverlayRuntimeStatus>({
+    visible: true,
+    editing: false,
+  });
   const [positionListenerReady, setPositionListenerReady] = useState(false);
+
+  useEffect(() => {
+    if (preferences.scale > 1) {
+      setPreferences((current) => ({ ...current, scale: 1 }));
+    }
+  }, [preferences.scale, setPreferences]);
 
   useEffect(() => {
     if (!("__TAURI_INTERNALS__" in window)) {
@@ -110,6 +125,38 @@ export function OverlayControls() {
   }, []);
 
   useEffect(() => {
+    if (!("__TAURI_INTERNALS__" in window)) {
+      return;
+    }
+
+    let cancelled = false;
+    let stopListening: (() => void) | undefined;
+    void Promise.all([
+      import("@tauri-apps/api/core"),
+      import("@tauri-apps/api/event"),
+    ]).then(async ([{ invoke }, { listen }]) => {
+      const unlisten = await listen<OverlayRuntimeStatus>(
+        "overlay-runtime-status",
+        (event) => setOverlayStatus(event.payload),
+      );
+      const current = await invoke<OverlayRuntimeStatus>(
+        "get_overlay_runtime_status",
+      );
+      if (cancelled) {
+        unlisten();
+      } else {
+        stopListening = unlisten;
+        setOverlayStatus(current);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      stopListening?.();
+    };
+  }, []);
+
+  useEffect(() => {
     let current = true;
     setHotkeyStatus(null);
     void configureOverlayHotkeys(hotkeys).then((status) => {
@@ -123,130 +170,152 @@ export function OverlayControls() {
   }, [hotkeys]);
 
   return (
-    <section className={styles.panel} aria-label="Overlay controls">
-      <div className={styles.actions}>
-        <strong>Overlay</strong>
-        <button type="button" onClick={() => invokeDesktop("toggle_overlay")}>
-          Show / hide
-        </button>
-        <button
-          type="button"
-          onClick={() => invokeDesktop("begin_overlay_edit_mode")}
+    <details className={styles.panel}>
+      <summary>Overlay settings</summary>
+      <div className={styles.content} aria-label="Overlay controls">
+        <div className={styles.actions}>
+          <button
+            type="button"
+            data-active={overlayStatus.visible}
+            aria-pressed={overlayStatus.visible}
+            onClick={() =>
+              invokeDesktop(
+                overlayStatus.visible ? "hide_overlay" : "show_overlay",
+              )
+            }
+          >
+            {overlayStatus.visible ? "Hide" : "Show"}
+          </button>
+          <button
+            type="button"
+            data-active={overlayStatus.editing}
+            aria-pressed={overlayStatus.editing}
+            onClick={() => invokeDesktop("toggle_overlay_edit_mode")}
+          >
+            Edit layout
+          </button>
+          <button
+            type="button"
+            onClick={() => invokeDesktop("reset_overlay_position")}
+          >
+            Reset position
+          </button>
+        </div>
+
+        <label>
+          Scale
+          <input
+            type="range"
+            min="0.75"
+            max="1"
+            step="0.05"
+            value={Math.min(preferences.scale, 1)}
+            onChange={(event) =>
+              setPreferences((current) => ({
+                ...current,
+                scale: Number(event.target.value),
+              }))
+            }
+          />
+          <output>{Math.round(Math.min(preferences.scale, 1) * 100)}%</output>
+        </label>
+
+        <label>
+          Opacity
+          <input
+            type="range"
+            min="0.35"
+            max="1"
+            step="0.05"
+            value={preferences.opacity}
+            onChange={(event) =>
+              setPreferences((current) => ({
+                ...current,
+                opacity: Number(event.target.value),
+              }))
+            }
+          />
+          <output>{Math.round(preferences.opacity * 100)}%</output>
+        </label>
+
+        <label>
+          <input
+            type="checkbox"
+            checked={preferences.autoHideWhenGameInactive}
+            onChange={(event) =>
+              setPreferences((current) => ({
+                ...current,
+                autoHideWhenGameInactive: event.target.checked,
+              }))
+            }
+          />
+          Auto-hide outside PoE
+        </label>
+
+        <span
+          className={styles.poeStatus}
+          data-state={poeStatus?.state ?? "checking"}
+          role="status"
         >
-          Edit layout for 30s
-        </button>
+          {poeStatus === null && "Looking for Path of Exile…"}
+          {poeStatus?.state === "notFound" &&
+            "PoE not found — manual placement"}
+          {poeStatus?.state === "foreground" &&
+            `Attached to ${poeStatus.processName ?? "Path of Exile"}`}
+          {poeStatus?.state === "background" &&
+            `PoE in background${
+              preferences.autoHideWhenGameInactive
+                ? " — overlay auto-hidden"
+                : ""
+            }`}
+        </span>
+
+        <label>
+          Toggle shortcut
+          <select
+            value={hotkeys.toggleOverlay}
+            onChange={(event) =>
+              setHotkeys((current) => ({
+                ...current,
+                toggleOverlay: event.target.value,
+              }))
+            }
+          >
+            {OVERLAY_HOTKEY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Hold to highlight
+          <select
+            value={hotkeys.holdForDetails}
+            onChange={(event) =>
+              setHotkeys((current) => ({
+                ...current,
+                holdForDetails: event.target.value,
+              }))
+            }
+          >
+            {OVERLAY_HOTKEY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <span
+          className={styles.hotkeyStatus}
+          data-state={hotkeyStatus?.state ?? "registering"}
+          role="status"
+        >
+          {hotkeyStatus?.message ?? "Registering global shortcuts…"}
+        </span>
       </div>
-
-      <label>
-        Scale
-        <input
-          type="range"
-          min="0.75"
-          max="1.5"
-          step="0.05"
-          value={preferences.scale}
-          onChange={(event) =>
-            setPreferences((current) => ({
-              ...current,
-              scale: Number(event.target.value),
-            }))
-          }
-        />
-        <output>{Math.round(preferences.scale * 100)}%</output>
-      </label>
-
-      <label>
-        Opacity
-        <input
-          type="range"
-          min="0.35"
-          max="1"
-          step="0.05"
-          value={preferences.opacity}
-          onChange={(event) =>
-            setPreferences((current) => ({
-              ...current,
-              opacity: Number(event.target.value),
-            }))
-          }
-        />
-        <output>{Math.round(preferences.opacity * 100)}%</output>
-      </label>
-
-      <label>
-        <input
-          type="checkbox"
-          checked={preferences.autoHideWhenGameInactive}
-          onChange={(event) =>
-            setPreferences((current) => ({
-              ...current,
-              autoHideWhenGameInactive: event.target.checked,
-            }))
-          }
-        />
-        Auto-hide outside PoE
-      </label>
-
-      <span
-        className={styles.poeStatus}
-        data-state={poeStatus?.state ?? "checking"}
-        role="status"
-      >
-        {poeStatus === null && "Looking for Path of Exile…"}
-        {poeStatus?.state === "notFound" && "PoE not found — manual placement"}
-        {poeStatus?.state === "foreground" &&
-          `Attached to ${poeStatus.processName ?? "Path of Exile"}`}
-        {poeStatus?.state === "background" &&
-          `PoE in background${
-            preferences.autoHideWhenGameInactive ? " — overlay auto-hidden" : ""
-          }`}
-      </span>
-
-      <label>
-        Toggle shortcut
-        <select
-          value={hotkeys.toggleOverlay}
-          onChange={(event) =>
-            setHotkeys((current) => ({
-              ...current,
-              toggleOverlay: event.target.value,
-            }))
-          }
-        >
-          {OVERLAY_HOTKEY_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label>
-        Hold to highlight
-        <select
-          value={hotkeys.holdForDetails}
-          onChange={(event) =>
-            setHotkeys((current) => ({
-              ...current,
-              holdForDetails: event.target.value,
-            }))
-          }
-        >
-          {OVERLAY_HOTKEY_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <span
-        className={styles.hotkeyStatus}
-        data-state={hotkeyStatus?.state ?? "registering"}
-        role="status"
-      >
-        {hotkeyStatus?.message ?? "Registering global shortcuts…"}
-      </span>
-    </section>
+    </details>
   );
 }

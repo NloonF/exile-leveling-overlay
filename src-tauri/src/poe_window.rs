@@ -1,4 +1,8 @@
-use std::{ffi::OsString, os::windows::ffi::OsStringExt, path::Path};
+use std::{
+    ffi::OsString,
+    os::windows::ffi::OsStringExt,
+    path::{Path, PathBuf},
+};
 
 use serde::Serialize;
 use windows_sys::Win32::{
@@ -66,6 +70,17 @@ pub fn inspect() -> PoeWindowStatus {
     search.result.unwrap_or_default()
 }
 
+pub fn find_client_log_path() -> Option<PathBuf> {
+    let mut result = None;
+    unsafe {
+        EnumWindows(
+            Some(find_client_log),
+            (&mut result as *mut Option<PathBuf>).cast::<core::ffi::c_void>() as LPARAM,
+        );
+    }
+    result
+}
+
 unsafe extern "system" fn enum_window(window: HWND, parameter: LPARAM) -> BOOL {
     let search = &mut *(parameter as *mut WindowSearch);
     if IsWindowVisible(window) == 0 {
@@ -74,12 +89,18 @@ unsafe extern "system" fn enum_window(window: HWND, parameter: LPARAM) -> BOOL {
 
     let mut process_id = 0;
     GetWindowThreadProcessId(window, &mut process_id);
-    let Some(process_name) = process_name(process_id) else {
+    let Some(process_path) = process_path(process_id) else {
         return 1;
     };
-    if !is_poe_executable(&process_name) {
+    if !is_supported_poe1_path(&process_path) {
         return 1;
     }
+    let Some(process_name) = process_path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+    else {
+        return 1;
+    };
 
     let mut rectangle = RECT {
         left: 0,
@@ -117,7 +138,24 @@ unsafe extern "system" fn enum_window(window: HWND, parameter: LPARAM) -> BOOL {
     0
 }
 
-unsafe fn process_name(process_id: u32) -> Option<String> {
+unsafe extern "system" fn find_client_log(window: HWND, parameter: LPARAM) -> BOOL {
+    let result = &mut *(parameter as *mut Option<PathBuf>);
+    let mut process_id = 0;
+    GetWindowThreadProcessId(window, &mut process_id);
+    let Some(process_path) = process_path(process_id) else {
+        return 1;
+    };
+    if !is_supported_poe1_path(&process_path) {
+        return 1;
+    }
+
+    *result = process_path
+        .parent()
+        .map(|directory| directory.join("logs").join("LatestClient.txt"));
+    0
+}
+
+unsafe fn process_path(process_id: u32) -> Option<PathBuf> {
     let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id);
     if process.is_null() {
         return None;
@@ -132,19 +170,44 @@ unsafe fn process_name(process_id: u32) -> Option<String> {
     }
 
     let path = OsString::from_wide(&buffer[..length as usize]);
-    Path::new(&path)
-        .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
+    Some(Path::new(&path).to_path_buf())
 }
 
 fn is_poe_executable(process_name: &str) -> bool {
-    let process_name = process_name.to_ascii_lowercase();
-    process_name.starts_with("pathofexile") && process_name.ends_with(".exe")
+    matches!(
+        process_name.to_ascii_lowercase().as_str(),
+        "pathofexile.exe"
+            | "pathofexile_x64.exe"
+            | "pathofexilesteam.exe"
+            | "pathofexile_x64steam.exe"
+            | "pathofexileegs.exe"
+            | "pathofexile_x64egs.exe"
+    )
+}
+
+fn is_supported_poe1_path(process_path: &Path) -> bool {
+    let Some(process_name) = process_path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    is_poe_executable(process_name) && !looks_like_poe2_path(process_path)
+}
+
+pub fn looks_like_poe2_path(path: &Path) -> bool {
+    path.components().any(|component| {
+        let normalized = component
+            .as_os_str()
+            .to_string_lossy()
+            .to_ascii_lowercase()
+            .replace([' ', '-', '_'], "");
+        normalized == "poe2" || normalized.contains("pathofexile2")
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::is_poe_executable;
+    use std::path::Path;
+
+    use super::{is_poe_executable, is_supported_poe1_path};
 
     #[test]
     fn recognises_known_poe_executable_variants() {
@@ -152,7 +215,24 @@ mod tests {
         assert!(is_poe_executable("PathOfExile_x64.exe"));
         assert!(is_poe_executable("PathOfExileSteam.exe"));
         assert!(is_poe_executable("PathOfExile_x64Steam.exe"));
+        assert!(is_poe_executable("PathOfExileEGS.exe"));
+        assert!(!is_poe_executable("PathOfExile2.exe"));
+        assert!(!is_poe_executable("PathOfExile2Steam.exe"));
+        assert!(!is_poe_executable("PathOfExileTotallyReal.exe"));
         assert!(!is_poe_executable("Path of Building.exe"));
         assert!(!is_poe_executable("notepad.exe"));
+    }
+
+    #[test]
+    fn rejects_poe2_installations_even_when_the_executable_name_is_shared() {
+        assert!(is_supported_poe1_path(Path::new(
+            r"C:\Games\Path of Exile\PathOfExileSteam.exe"
+        )));
+        assert!(!is_supported_poe1_path(Path::new(
+            r"C:\Games\Path of Exile 2\PathOfExileSteam.exe"
+        )));
+        assert!(!is_supported_poe1_path(Path::new(
+            r"D:\poe2\PathOfExile_x64Steam.exe"
+        )));
     }
 }

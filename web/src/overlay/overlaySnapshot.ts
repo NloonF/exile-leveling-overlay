@@ -1,5 +1,5 @@
 import type { Fragments, RouteData } from "common";
-import type { LogApiConnectionState } from "../integrations/logApiClient";
+import type { LogApiConnectionState } from "../state/auto-progress";
 import type { OverlayPreferences } from "./overlayPreferences";
 
 export const OVERLAY_SNAPSHOT_VERSION = 3;

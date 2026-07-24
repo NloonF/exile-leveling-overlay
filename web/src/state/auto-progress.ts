@@ -1,19 +1,23 @@
 import { atom } from "jotai";
-import {
-  type LogApiConnectionState,
-  type LogApiDiagnostic,
-} from "../integrations/logApiClient";
-import { persistentAtom } from ".";
 
-const AUTO_PROGRESS_ENABLED_VERSION = 0;
+export type LogApiConnectionState =
+  { status: "disabled" } | { status: "connecting" } | { status: "connected" };
 
-export const autoProgressEnabledAtom = persistentAtom(
-  "auto-progress-enabled",
-  false,
-  AUTO_PROGRESS_ENABLED_VERSION,
-);
+export interface LogReaderStatus {
+  state: "disabled" | "searching" | "following" | "error";
+  message: string | null;
+  logPath: string | null;
+  usingManualPath: boolean;
+}
+
+export const autoProgressEnabledAtom = atom(false);
 export const autoProgressPausedAtom = atom(false);
 export const logApiConnectionStateAtom = atom<LogApiConnectionState>({
   status: "disabled",
 });
-export const lastLogApiDiagnosticAtom = atom<LogApiDiagnostic | null>(null);
+export const logReaderStatusAtom = atom<LogReaderStatus>({
+  state: "disabled",
+  message: null,
+  logPath: null,
+  usingManualPath: false,
+});

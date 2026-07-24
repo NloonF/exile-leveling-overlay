@@ -1,0 +1,139 @@
+name: Signed Windows Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout tagged source
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify tag and application versions
+        shell: pwsh
+        run: |
+          npm run check:version
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          if ("v$version" -ne "${{ github.ref_name }}") {
+            throw "Tag ${{ github.ref_name }} does not match application version $version."
+          }
+
+      - name: Test release source
+        run: |
+          npm test
+          cargo test --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Import Windows signing certificate
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_BASE64)) {
+            throw "WINDOWS_CERTIFICATE_BASE64 is required for public releases."
+          }
+          $certificatePath = Join-Path $env:RUNNER_TEMP "release-signing.pfx"
+          [IO.File]::WriteAllBytes(
+            $certificatePath,
+            [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_BASE64)
+          )
+          $password = ConvertTo-SecureString `
+            -String $env:WINDOWS_CERTIFICATE_PASSWORD `
+            -AsPlainText `
+            -Force
+          $certificate = Import-PfxCertificate `
+            -FilePath $certificatePath `
+            -CertStoreLocation Cert:\CurrentUser\My `
+            -Password $password |
+            Where-Object HasPrivateKey |
+            Select-Object -First 1
+          if ($null -eq $certificate) {
+            throw "The Windows signing certificate could not be imported."
+          }
+          $configPath = "src-tauri/tauri.conf.json"
+          $config = Get-Content $configPath -Raw | ConvertFrom-Json
+          $config.bundle.windows |
+            Add-Member -NotePropertyName certificateThumbprint `
+              -NotePropertyValue $certificate.Thumbprint -Force
+          $config | ConvertTo-Json -Depth 30 | Set-Content $configPath
+
+      - name: Build signed NSIS installer
+        run: npm run build:windows
+
+      - name: Verify Authenticode signatures
+        shell: pwsh
+        run: |
+          $targets = @(
+            Get-ChildItem "src-tauri/target/release/*.exe"
+            Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe"
+          )
+          foreach ($target in $targets) {
+            $signature = Get-AuthenticodeSignature $target.FullName
+            if ($signature.Status -ne "Valid") {
+              throw "$($target.Name) has signature status $($signature.Status)."
+            }
+          }
+
+      - name: Generate SHA-256 checksum
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem `
+            "src-tauri/target/release/bundle/nsis/*-setup.exe" |
+            Select-Object -First 1
+          $hash = Get-FileHash $installer.FullName -Algorithm SHA256
+          "$($hash.Hash.ToLower())  $($installer.Name)" |
+            Set-Content "src-tauri/target/release/bundle/nsis/SHA256SUMS.txt"
+
+      - name: Generate installer SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: src-tauri/target/release/bundle/nsis
+          format: spdx-json
+          output-file: src-tauri/target/release/bundle/nsis/sbom.spdx.json
+
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: |
+            src-tauri/target/release/bundle/nsis/*-setup.exe
+            src-tauri/target/release/bundle/nsis/SHA256SUMS.txt
+            src-tauri/target/release/bundle/nsis/sbom.spdx.json
+
+      - name: Publish versioned assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(
+            (Get-ChildItem "src-tauri/target/release/bundle/nsis/*-setup.exe").FullName
+            (Resolve-Path "src-tauri/target/release/bundle/nsis/SHA256SUMS.txt").Path
+            (Resolve-Path "src-tauri/target/release/bundle/nsis/sbom.spdx.json").Path
+          )
+          gh release create "${{ github.ref_name }}" @assets `
+            --verify-tag `
+            --generate-notes `
+            --title "Exile Leveling Overlay ${{ github.ref_name }}"
