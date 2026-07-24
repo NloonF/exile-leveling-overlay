@@ -1,8 +1,9 @@
 import type { Fragments, RouteData } from "common";
 import type { LogApiConnectionState } from "../state/auto-progress";
 import type { OverlayPreferences } from "./overlayPreferences";
+import type { UrlTree } from "../state/tree/url-tree";
 
-export const OVERLAY_SNAPSHOT_VERSION = 3;
+export const OVERLAY_SNAPSHOT_VERSION = 4;
 
 export type OverlayStatus =
   "inactive" | "active" | "paused" | "disconnected" | "complete";
@@ -39,6 +40,7 @@ export interface OverlaySnapshot {
     current: number;
     total: number;
   };
+  trees: UrlTree.Data[];
   preferences: OverlayPreferences;
 }
 
@@ -72,6 +74,7 @@ export interface OverlaySnapshotInput {
   areas: Record<string, AreaLabel>;
   quests: Record<string, QuestLabel>;
   gems: Record<string, GemLabel>;
+  trees: UrlTree.Data[];
   preferences: OverlayPreferences;
 }
 
@@ -322,6 +325,7 @@ export function buildOverlaySnapshot(
       secondaryInstructions: [],
       previousCheckpoint,
       progress: { current: total, total },
+      trees: input.trees,
       preferences: input.preferences,
     };
   }
@@ -356,6 +360,7 @@ export function buildOverlaySnapshot(
           current: Math.min(nextEdgeIndex, total),
           total,
         },
+        trees: input.trees,
         preferences: input.preferences,
       };
     }
@@ -377,6 +382,7 @@ export function buildOverlaySnapshot(
       current: Math.min(nextEdgeIndex, total),
       total,
     },
+    trees: input.trees,
     preferences: input.preferences,
   };
 }

@@ -65,6 +65,7 @@ function input(
     },
     quests: {},
     gems: {},
+    trees: [],
     preferences: defaultPreferences,
     ...overrides,
   };
@@ -72,7 +73,7 @@ function input(
 
 test("builds an active next-instruction snapshot", () => {
   const snapshot = buildOverlaySnapshot(input());
-  assert.equal(snapshot.version, 3);
+  assert.equal(snapshot.version, 4);
   assert.equal(snapshot.status, "active");
   assert.equal(snapshot.sectionTitle, "Act 1");
   assert.equal(snapshot.areaId, "1_1_town");
@@ -93,13 +94,27 @@ test("builds an active next-instruction snapshot", () => {
   assert.deepEqual(snapshot.preferences, defaultPreferences);
 });
 
+test("includes imported passive trees in the overlay snapshot", () => {
+  const trees = [
+    {
+      name: "Level 20",
+      version: "3_28",
+      nodes: ["1", "2"],
+      masteries: {},
+    },
+  ];
+  const snapshot = buildOverlaySnapshot(input({ trees }));
+
+  assert.deepEqual(snapshot.trees, trees);
+});
+
 test("marks the same deterministic instruction as paused", () => {
   const snapshot = buildOverlaySnapshot(input({ paused: true }));
   assert.equal(snapshot.status, "paused");
   assert.equal(snapshot.primaryInstruction.text, "Enter Lioneye's Watch");
 });
 
-test("marks a helper outage as disconnected", () => {
+test("marks an unavailable PoE log as disconnected", () => {
   const snapshot = buildOverlaySnapshot(
     input({
       connectionState: {
@@ -126,7 +141,7 @@ test("builds a complete snapshot after the final edge", () => {
   assert.deepEqual(
     buildOverlaySnapshot(input({ activeEdgeIndex: route.edges.length - 1 })),
     {
-      version: 3,
+      version: 4,
       status: "complete",
       sectionTitle: null,
       areaId: null,
@@ -138,6 +153,7 @@ test("builds a complete snapshot after the final edge", () => {
       secondaryInstructions: [],
       previousCheckpoint: null,
       progress: { current: 2, total: 2 },
+      trees: [],
       preferences: defaultPreferences,
     },
   );

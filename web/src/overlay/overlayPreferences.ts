@@ -5,6 +5,8 @@ export interface OverlayPreferences {
   opacity: number;
   positionX: number;
   positionY: number;
+  width: number;
+  height: number;
   coordinateMode?: "screen" | "game";
   autoHideWhenGameInactive: boolean;
 }
@@ -14,11 +16,13 @@ export const DEFAULT_OVERLAY_PREFERENCES: OverlayPreferences = {
   opacity: 0.92,
   positionX: 24,
   positionY: 80,
+  width: 420,
+  height: 240,
   coordinateMode: "game",
   autoHideWhenGameInactive: true,
 };
 
-const OVERLAY_PREFERENCES_VERSION = 1;
+const OVERLAY_PREFERENCES_VERSION = 2;
 
 export const overlayPreferencesAtom = persistentAtom(
   "overlay-preferences",

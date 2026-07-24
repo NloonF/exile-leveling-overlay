@@ -19,6 +19,8 @@ endorsed by Grinding Gear Games.
   project; no separate helper installation is required.
 - Current and previous checkpoint details, including quest hand-ins, vendor
   actions, route subtasks, and imported Path of Building gem rewards.
+- Restored Path of Building passive-tree stages in the dashboard, with an
+  optional overlay tree view and configurable global shortcut.
 - The original guide's fonts, colors, icons, and reward presentation.
 - Drag-only positioning, scaling, opacity, configurable global shortcuts, tray
   controls, and optional hiding while Path of Exile is in the background.
@@ -68,10 +70,15 @@ Default shortcuts:
 
 - `Ctrl+Shift+O` toggles the overlay.
 - Hold `Ctrl+Shift+D` to emphasize checkpoint details.
+- `Ctrl+Shift+T` toggles the imported passive tree in its own overlay window.
+  Its size and opacity have separate dashboard controls.
+- Hold `Ctrl+Shift+D` while the tree is visible to hover nodes, wheel-zoom,
+  and drag the tree view to pan.
 
-The shortcuts, scale, opacity, visibility behavior, and position can be
-changed from the dashboard. If Path of Exile is not detected, the overlay
-continues working in manual-placement mode.
+The shortcuts, scale, opacity, visibility behavior, and positions can be
+changed from the dashboard. **Edit layout** exposes both overlay windows so
+their positions can be adjusted together. If Path of Exile is not detected,
+both overlays continue working in manual-placement mode.
 
 No game helper or background service needs to be installed separately. See
 the [integration record](docs/helper-bundling-analysis.md) for the design and
