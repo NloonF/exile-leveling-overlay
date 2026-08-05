@@ -1,6 +1,7 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { fileURLToPath, URL } from "node:url";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -8,6 +9,16 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: desktop ? "./" : "/exile-leveling/",
+    resolve: {
+      alias: {
+        "virtual:tree-data": fileURLToPath(
+          new URL(
+            `./src/state/tree/data.${desktop ? "desktop" : "web"}.ts`,
+            import.meta.url,
+          ),
+        ),
+      },
+    },
     server: {
       host: desktop ? "127.0.0.1" : true,
       port: desktop ? 1420 : undefined,
